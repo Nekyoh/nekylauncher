@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=NekyLauncher
+GenericName=Minecraft Launcher
+Comment=Minecraft launcher by Nekyoh
+Exec=NekyLauncher
+Icon=nekylauncher
+Terminal=false
+Categories=Game;
+Keywords=minecraft;launcher;mods;
+StartupWMClass=com-nekyoh-nekylauncher-NekyLauncher

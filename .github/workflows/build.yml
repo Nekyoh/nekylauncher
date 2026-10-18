@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Self tests
+        env:
+          NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon selfTest
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        env:
+          NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y fakeroot
+          bash packaging/package-linux.sh
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        env:
+          NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+        shell: pwsh
+        run: ./packaging/package-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NekyLauncher-${{ runner.os }}
+          path: dist/*
