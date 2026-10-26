@@ -28,12 +28,13 @@ common=(--name NekyLauncher --app-version "$VERSION" --vendor "Nekyoh"
         --java-options "-Xss2m")
 
 echo "> jpackage: app image"
-jpackage --type app-image --dest build/jpackage "${common[@]}"
+# -Dneky.dist tells the built-in updater which kind of file updates this copy
+jpackage --type app-image --dest build/jpackage "${common[@]}" --java-options "-Dneky.dist=linux-portable"
 tar -C build/jpackage -czf "dist/NekyLauncher-linux-x64.tar.gz" NekyLauncher
 
 if command -v dpkg-deb >/dev/null && command -v fakeroot >/dev/null; then
   echo "> jpackage: .deb"
-  jpackage --type deb --dest dist "${common[@]}" \
+  jpackage --type deb --dest dist "${common[@]}" --java-options "-Dneky.dist=linux-deb" \
            --linux-shortcut --linux-menu-group Game --linux-app-category games \
            --linux-package-name nekylauncher || echo "  (deb skipped)"
 fi

@@ -20,6 +20,7 @@
 - **Java certo automaticamente** — baixa o mesmo runtime que o launcher oficial usa para cada versão (Java 8, 17, 21…). Ou escolha um Java instalado, o **Java do launcher oficial** (é detectado) ou aponte para qualquer `javaw.exe`/`java`.
 - **Exportar/Importar .zip** — exporte uma instância escolhendo o que vai junto; importe `.zip` do NekyLauncher, **`.mrpack` (Modrinth)**, instâncias do **Prism/MultiMC** e modpacks do **CurseForge**.
 - **Console do jogo** com cores por nível de log (lê os eventos XML do log4j como o launcher oficial), botão de parar, abrir pasta de logs.
+- **Atualização automática** — ao abrir, o launcher verifica no GitHub se saiu versão nova e atualiza em um clique, do mesmo jeito que foi instalado (instalador, portátil, .deb ou tar.gz), sem mexer em instâncias, mundos e contas.
 - **Interface em Português, English e Español** (troca na hora, em Configurações).
 - **Links da comunidade** na barra lateral: canais Nekyoh e Tekyoh no YouTube, nekyoh.tech, site do launcher e EpicCraft.
 - Zero dependências externas e **nada de JavaScript**: Java 21 + Swing com UI 100% desenhada à mão (tema escuro, ícones vetoriais, fonte Inter). O pacote final traz o próprio Java — o usuário não precisa instalar nada.
@@ -28,6 +29,34 @@
   <img src="docs/screenshots/instance-mods.png" width="49%" alt="Mods da instância">
   <img src="docs/screenshots/skins.png" width="49%" alt="Skins">
 </p>
+
+## Baixar e instalar
+
+Baixe na página de [Releases](https://github.com/Nekyoh/nekylauncher/releases/latest):
+
+| Sistema | Arquivo | Como usar |
+|---|---|---|
+| Windows | `NekyLauncher-<versão>.exe` | instalador: cria atalho no Menu Iniciar e aparece em *Aplicativos* para desinstalar |
+| Windows | `NekyLauncher-windows-x64.zip` | portátil: descompacte e abra `NekyLauncher.exe` |
+| Linux | `nekylauncher_<versão>_amd64.deb` | `sudo apt install ./nekylauncher_*.deb` (Debian, Ubuntu, Mint…) |
+| Linux | `NekyLauncher-linux-x64.tar.gz` | portátil: extraia e rode `NekyLauncher/bin/NekyLauncher` |
+
+Todos já trazem o Java; não precisa instalar nada além disso.
+
+> [!WARNING]
+> **Aviso do Windows:** o NekyLauncher ainda não tem assinatura digital, então o Windows pode mostrar
+> *"O Windows protegeu o computador"* ou *"Fornecedor desconhecido"*. Clique em **Mais informações › Executar assim mesmo**.
+> O código é aberto e pode ser conferido aqui no GitHub; os executáveis são gerados pelo GitHub Actions a partir dele.
+
+### Atualizações
+
+Ao abrir, o launcher verifica se existe versão nova e mostra um aviso. Em **Atualizar agora** ele baixa o arquivo certo para a sua instalação, confere o checksum, fecha e:
+
+- **instalador do Windows**: abre o instalador da versão nova (só seguir; o launcher reabre no final);
+- **portátil (Windows/Linux)**: troca os arquivos do programa e reabre — a pasta `data/` e o `portable.txt` ficam intactos;
+- **.deb**: pede sua senha do sistema e instala o pacote novo.
+
+Dá para desligar a verificação ou procurar na hora em **Configurações › Atualizações**. Instâncias, mundos, contas e presets de skin nunca são apagados.
 
 ## Publicar no GitHub e gerar os executáveis
 
@@ -49,7 +78,11 @@ O repositório já tem um workflow (`.github/workflows/build.yml`) que **compila
 4. Rode de novo o build: aba **Actions › Build › Run workflow** (ou faça qualquer push).
 5. Os arquivos ficam na execução do workflow, em **Artifacts**: `NekyLauncher-Windows` (zip portátil e, se houver WiX, instalador) e `NekyLauncher-Linux` (tar.gz e .deb).
 
-Para publicar uma versão, crie um *Release* (aba Releases › Draft a new release) e anexe esses arquivos.
+### Lançar uma versão
+
+1. Aumente `version = "..."` no `build.gradle.kts` (ex.: `1.1.0` → `1.2.0`). É esse número que o launcher compara para saber se há atualização.
+2. Faça o commit e o push, baixe os *Artifacts* do build e teste.
+3. Crie a Release com a tag `v<versão>` (ex.: `v1.2.0`) e anexe os 4 arquivos — manualmente em **Releases › Draft a new release**, ou automaticamente se o workflow tiver o passo de release. Só quando a Release é **publicada** (não rascunho) os launchers instalados recebem o aviso de atualização.
 
 ### Gerar no seu PC (opcional)
 
@@ -88,7 +121,7 @@ Arquivos cujo autor desativou downloads por terceiros vêm da API sem link: o Ne
 |---|---|
 | Windows | `%APPDATA%\.nekylauncher` |
 | Linux | `~/.local/share/nekylauncher` (ou `$XDG_DATA_HOME/nekylauncher`) |
-| Portátil | crie um arquivo `portable.txt` ao lado do launcher → tudo vai para `data/` ali mesmo |
+| Portátil | crie um arquivo vazio `portable.txt` ao lado do `NekyLauncher.exe` (no Linux, dentro da pasta `NekyLauncher/`, ao lado de `bin/`) → tudo vai para `data/` ali mesmo |
 
 Para trocar o local (por exemplo para outro disco), use **Configurações › Armazenamento › Alterar local…**. O launcher move tudo (instâncias, mundos, Java, downloads) — no mesmo disco é instantâneo — e reinicia já usando a pasta nova. Se algo falhar no meio, os arquivos voltam para o lugar antigo. "Restaurar padrão" traz tudo de volta.
 
@@ -106,6 +139,7 @@ src/main/java/com/nekyoh/nekylauncher/
   instance/  instâncias, leitura de metadados de mods/packs, exportar/importar
   modrinth/  API do Modrinth com dependências
   curseforge/ API do CurseForge (busca, arquivos, dependências, fingerprints, modpacks)
+  update/    verificação de versão no GitHub Releases e atualização automática
   ui/        janela, páginas, diálogos e o kit visual (tema, botões, ícones…)
 src/main/resources/nekylauncher/i18n/  traduções (en, pt, es)
 ```

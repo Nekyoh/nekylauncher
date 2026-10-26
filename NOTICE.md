@@ -30,4 +30,5 @@ No other third-party libraries are used: HTTP, JSON, ZIP, XML and the UI are bui
 - Modrinth API (search and downloads)
 - CurseForge Core API (search and downloads; files whose authors disallow third-party
   distribution are never downloaded by the launcher, the user is sent to the CurseForge page)
+- GitHub Releases API (checking for and downloading NekyLauncher updates)
 - Eclipse Adoptium API (only when Mojang has no Java runtime for the platform)

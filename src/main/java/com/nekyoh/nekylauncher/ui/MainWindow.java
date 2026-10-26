@@ -50,6 +50,9 @@ public final class MainWindow extends NFrame {
             @Override public void windowClosing(WindowEvent e) { requestClose(); }
         });
         if (s.windowMaximized) SwingUtilities.invokeLater(this::toggleMaximize);
+        Timer updateCheck = new Timer(2500, e -> com.nekyoh.nekylauncher.ui.dialogs.UpdateDialog.checkOnStartup(this));
+        updateCheck.setRepeats(false);
+        updateCheck.start();
         String lost = com.nekyoh.nekylauncher.core.Dirs.pointerProblem;
         if (lost != null) {
             SwingUtilities.invokeLater(() -> Toast.show(I18n.tr("datadir.unavailable", lost), Toast.Kind.WARNING,

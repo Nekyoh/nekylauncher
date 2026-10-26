@@ -108,6 +108,12 @@ public final class Screenshots {
         });
         Thread.sleep(400);
         shot(w, out.resolve(lang + "-6b-storage.png"));
+        ui(() -> com.nekyoh.nekylauncher.ui.dialogs.UpdateDialog.show(w, new com.nekyoh.nekylauncher.update.Updater.Release("1.2.0", "v1.2.0", "NekyLauncher 1.2.0",
+                "## Novidades\n- **Skins**: troque skin e capa direto no launcher\n- Integração com o CurseForge\n- Atualização automática\n\n## Correções\n- Teste de inicialização com Java 17",
+                "https://github.com/Nekyoh/nekylauncher/releases", java.util.List.of(new com.nekyoh.nekylauncher.update.Updater.Asset("NekyLauncher-windows-x64.zip", "u", 38_799_564, null)))));
+        Thread.sleep(500);
+        shot(w, out.resolve(lang + "-6d-update.png"));
+        ui(() -> closeModals(w));
         ui(() -> com.nekyoh.nekylauncher.ui.dialogs.DataFolderDialog.confirm(w, root.getParent().resolve("D-Jogos").resolve("NekyLauncher")));
         Thread.sleep(500);
         shot(w, out.resolve(lang + "-6c-datadir.png"));

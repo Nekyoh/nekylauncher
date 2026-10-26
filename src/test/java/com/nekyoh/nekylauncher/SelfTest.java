@@ -54,6 +54,8 @@ public final class SelfTest {
         run("curseforge loader matching", SelfTest::cfLoaders);
         run("curseforge search + install with dependencies", SelfTest::cfInstall);
         run("curseforge modpack import via api", SelfTest::cfModpack);
+        run("updater: release parsing + download check", SelfTest::updaterRelease);
+        run("updater: portable swap keeps data (linux script)", SelfTest::updaterSwap);
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
@@ -909,6 +911,92 @@ public final class SelfTest {
             com.nekyoh.nekylauncher.curseforge.CurseForge.setForTests(null, null);
             srv.stop(0);
         }
+    }
+
+    // ------------------------------------------------------------------ updater
+
+    static void updaterRelease() throws Exception {
+        byte[] exe = "new installer".getBytes(StandardCharsets.UTF_8), zip = "new portable".getBytes(StandardCharsets.UTF_8);
+        String sha = Hashes.hex(Hashes.digest("SHA-256").digest(zip));
+        com.sun.net.httpserver.HttpServer[] self = {null};
+        var srv = serve((m, uri, h, body) -> {
+            String b = base(self[0]);
+            return switch (uri) {
+                case "/latest" -> Resp.json("{\"tag_name\":\"v1.2.0\",\"name\":\"NekyLauncher 1.2.0\",\"body\":\"## Novidades\\n- **Skins**\\n- [CurseForge](https://x.y)\","
+                        + "\"html_url\":\"https://github.com/Nekyoh/nekylauncher/releases/tag/v1.2.0\",\"assets\":["
+                        + "{\"name\":\"NekyLauncher-1.2.0.exe\",\"size\":" + exe.length + ",\"browser_download_url\":\"" + b + "/exe\"},"
+                        + "{\"name\":\"NekyLauncher-windows-x64.zip\",\"size\":" + zip.length + ",\"digest\":\"sha256:" + sha + "\",\"browser_download_url\":\"" + b + "/zip\"},"
+                        + "{\"name\":\"nekylauncher_1.2.0_amd64.deb\",\"size\":3,\"browser_download_url\":\"" + b + "/deb\"},"
+                        + "{\"name\":\"NekyLauncher-linux-x64.tar.gz\",\"size\":3,\"browser_download_url\":\"" + b + "/tgz\"}]}");
+                case "/exe" -> new Resp(200, "application/octet-stream", exe);
+                case "/zip" -> new Resp(200, "application/zip", zip);
+                case "/badzip" -> new Resp(200, "application/zip", "tampered!!!!".getBytes(StandardCharsets.UTF_8));
+                default -> null;
+            };
+        });
+        self[0] = srv;
+        try {
+            com.nekyoh.nekylauncher.update.Updater.setApiForTests(base(srv) + "/latest");
+            var r = com.nekyoh.nekylauncher.update.Updater.latest();
+            eq(r.version(), "1.2.0");
+            check(com.nekyoh.nekylauncher.update.Updater.isNewer("1.2.0", "1.0.0"), "newer");
+            check(com.nekyoh.nekylauncher.update.Updater.isNewer("1.10.0", "1.9.3"), "numeric compare");
+            check(!com.nekyoh.nekylauncher.update.Updater.isNewer("1.0.0", "1.0.0"), "same");
+            check(!com.nekyoh.nekylauncher.update.Updater.isNewer("nightly", "1.0.0"), "non-version tag ignored");
+            var D = com.nekyoh.nekylauncher.update.Updater.Dist.class;
+            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_INSTALLER")).name(), "NekyLauncher-1.2.0.exe");
+            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_PORTABLE")).name(), "NekyLauncher-windows-x64.zip");
+            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "LINUX_DEB")).name(), "nekylauncher_1.2.0_amd64.deb");
+            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "LINUX_PORTABLE")).name(), "NekyLauncher-linux-x64.tar.gz");
+            check(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "DEV")) == null, "dev builds don't self-update");
+            Path dir = Files.createTempDirectory("neky-upd");
+            var zipAsset = com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_PORTABLE"));
+            eq(zipAsset.sha256(), sha);
+            Path got = com.nekyoh.nekylauncher.update.Updater.download(zipAsset, dir, Progress.NONE, null);
+            check(Arrays.equals(Files.readAllBytes(got), zip), "downloaded");
+            var bad = new com.nekyoh.nekylauncher.update.Updater.Asset("bad.zip", base(srv) + "/badzip", zip.length, sha);
+            boolean threw = false;
+            try { com.nekyoh.nekylauncher.update.Updater.download(bad, dir, Progress.NONE, null); } catch (java.io.IOException e) { threw = true; }
+            check(threw && !Files.exists(dir.resolve("bad.zip")), "sha256 mismatch rejected and removed");
+        } finally {
+            com.nekyoh.nekylauncher.update.Updater.setApiForTests(null);
+            srv.stop(0);
+        }
+    }
+
+    /** Runs the real Linux swap script against a fake portable install. */
+    static void updaterSwap() throws Exception {
+        if (OS.isWindows() || !Files.isExecutable(Path.of("/bin/sh"))) { System.out.println("       (skipped: needs /bin/sh)"); return; }
+        Path root = Files.createTempDirectory("neky-swap");
+        Path app = root.resolve("NekyLauncher");
+        Files.createDirectories(app.resolve("bin"));
+        Files.createDirectories(app.resolve("lib/app"));
+        Files.createDirectories(app.resolve("data/instances/Survival"));
+        Files.writeString(app.resolve("bin/NekyLauncher"), "#!/bin/sh\necho old\n");
+        Files.writeString(app.resolve("lib/app/old.jar"), "old");
+        Files.writeString(app.resolve("portable.txt"), "");
+        Files.writeString(app.resolve("data/instances/Survival/world.dat"), "precious");
+        Path staging = root.resolve("staging");
+        Path src = staging.resolve("NekyLauncher");
+        Files.createDirectories(src.resolve("bin"));
+        Files.createDirectories(src.resolve("lib/app"));
+        Files.writeString(src.resolve("lib/app/new.jar"), "new");
+        Files.writeString(src.resolve("bin/NekyLauncher"), "#!/bin/sh\necho started > \"$(dirname \"$0\")/../started.txt\"\n");
+        eq(com.nekyoh.nekylauncher.update.Updater.findRoot(staging, "bin/NekyLauncher"), src);
+        Process waiting = new ProcessBuilder("sleep", "1").start(); // stands in for the running launcher
+        Path script = root.resolve("update.sh");
+        Files.writeString(script, com.nekyoh.nekylauncher.update.Updater.linuxPortableScript(waiting.pid(), src, app));
+        Process p = new ProcessBuilder("sh", script.toString()).redirectErrorStream(true).start();
+        check(p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS), "script finished");
+        check(!waiting.isAlive(), "waited for the launcher to exit");
+        for (int i = 0; i < 40 && !Files.exists(app.resolve("started.txt")); i++) Thread.sleep(100);
+        check(Files.exists(app.resolve("lib/app/new.jar")), "new files in place");
+        check(!Files.exists(app.resolve("lib/app/old.jar")), "old files removed");
+        eq(Files.readString(app.resolve("data/instances/Survival/world.dat")), "precious");
+        check(Files.exists(app.resolve("portable.txt")), "portable marker kept");
+        check(Files.exists(app.resolve("started.txt")), "new version started");
+        String ps = com.nekyoh.nekylauncher.update.Updater.windowsPortableScript(42, Path.of("C:/x/it's"), Path.of("C:/apps/Neky"));
+        check(ps.contains("'C:/x/it''s'") || ps.contains("it''s"), "powershell quoting");
     }
 
     static void jar(Path classes, String entry, Path out) throws Exception {

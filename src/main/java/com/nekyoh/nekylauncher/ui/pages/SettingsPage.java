@@ -140,6 +140,16 @@ public final class SettingsPage extends JPanel {
         };
         folderRow.with(Ui.paragraph(sourceHint, Theme.TEXT_3, 12));
 
+        // updates
+        Controls.Toggle autoUpdate = new Controls.Toggle(s.checkUpdates).onChange(v -> { s.checkUpdates = v; s.save(); });
+        NButton checkNow = new NButton(I18n.tr("update.checkNow"), Icons.Name.REFRESH, NButton.Variant.SECONDARY);
+        checkNow.onClick(() -> com.nekyoh.nekylauncher.ui.dialogs.UpdateDialog.checkNow(window, checkNow));
+        NButton releases = new NButton(I18n.tr("update.allReleases"), Icons.Name.EXTERNAL, NButton.Variant.GHOST)
+                .onClick(() -> OS.openUrl("https://github.com/" + AppInfo.GITHUB_REPO + "/releases"));
+        Stack updButtons = Stack.h(8);
+        updButtons.with(checkNow, releases);
+        String distName = I18n.tr("update.dist." + com.nekyoh.nekylauncher.update.Updater.dist().name().toLowerCase());
+
         Stack content = Stack.v(16);
         content.with(Ui.h1(I18n.tr("settings.title")));
         content.with(InstanceSettingsTab.section(I18n.tr("settings.section.general"),
@@ -158,6 +168,10 @@ public final class SettingsPage extends JPanel {
                 Ui.field(I18n.tr("settings.concurrent"), I18n.tr("settings.concurrentHint"), concRow)));
         content.with(InstanceSettingsTab.section(I18n.tr("settings.section.storage"),
                 Ui.field(I18n.tr("settings.dataDir"), I18n.tr("settings.dataDirHint"), folderRow)));
+        content.with(InstanceSettingsTab.section(I18n.tr("settings.section.updates"),
+                Ui.settingRow(I18n.tr("update.auto"), I18n.tr("update.autoHint"), autoUpdate),
+                Ui.left(updButtons),
+                Ui.paragraph(I18n.tr("update.current", AppInfo.VERSION, distName), Theme.TEXT_3, 12)));
         content.with(about());
         content.pad(26, 28, 32, 28);
         add(NScroll.vertical(content, Theme.BG), BorderLayout.CENTER);

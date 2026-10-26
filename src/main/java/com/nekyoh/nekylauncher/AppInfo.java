@@ -7,6 +7,8 @@ public final class AppInfo {
     public static final String AUTHOR = "Nekyoh";
     public static final String VERSION = readVersion();
     // official links shown in the sidebar
+    public static final String GITHUB_REPO = "Nekyoh/nekylauncher";
+    public static final String RELEASES_PAGE = "https://github.com/" + GITHUB_REPO + "/releases/latest";
     public static final String SITE = "https://nekyoh.tech/";
     public static final String LAUNCHER_SITE = "https://launcher.nekyoh.tech/";
     public static final String EPICCRAFT_SITE = "https://epiccraft.nekyoh.tech/";

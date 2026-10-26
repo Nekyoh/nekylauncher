@@ -25,12 +25,13 @@ $common = @("--name", "NekyLauncher", "--app-version", $version, "--vendor", "Ne
             "--java-options", "-Xss2m")
 
 Write-Host "> jpackage: app image"
-jpackage --type app-image --dest build\jpackage @common
+# -Dneky.dist tells the built-in updater which kind of file updates this copy
+jpackage --type app-image --dest build\jpackage @common --java-options "-Dneky.dist=windows-portable"
 Compress-Archive -Path build\jpackage\NekyLauncher -DestinationPath dist\NekyLauncher-windows-x64.zip -Force
 
 if (Get-Command candle.exe -ErrorAction SilentlyContinue) {
     Write-Host "> jpackage: installer (.exe)"
-    jpackage --type exe --dest dist @common --win-dir-chooser --win-menu --win-menu-group "NekyLauncher" `
+    jpackage --type exe --dest dist @common --java-options "-Dneky.dist=windows-installer" --win-dir-chooser --win-menu --win-menu-group "NekyLauncher" `
              --win-shortcut --win-per-user-install --win-upgrade-uuid "6f1f6c55-5d3e-4a7e-9b51-2a3c8a6e0b11"
 } else {
     Write-Host "  (installer skipped: install WiX Toolset 3.x to also build an .exe installer)"

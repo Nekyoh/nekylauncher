@@ -40,6 +40,8 @@ public final class Dirs {
         if (override != null && !override.isBlank()) return new Dirs(Path.of(override), Source.OVERRIDE);
         Path appDir = appLocation();
         if (appDir != null && Files.exists(appDir.resolve("portable.txt"))) return new Dirs(appDir.resolve("data"), Source.PORTABLE);
+        Path jarDir = jarLocation(); // older builds looked next to the .jar (app/ inside the package)
+        if (jarDir != null && !jarDir.equals(appDir) && Files.exists(jarDir.resolve("portable.txt"))) return new Dirs(jarDir.resolve("data"), Source.PORTABLE);
         Path def = defaultRoot();
         Path custom = readPointer(def);
         if (custom != null) return new Dirs(custom, Source.CUSTOM);
@@ -98,7 +100,21 @@ public final class Dirs {
 
     public boolean isChangeable() { return source == Source.DEFAULT || source == Source.CUSTOM; }
 
-    private static Path appLocation() {
+    /**
+     * Folder the user sees as "the launcher": where NekyLauncher.exe is on Windows, the package root
+     * (above bin/) on Linux. Falls back to the jar's folder when not running from a jpackage build.
+     */
+    public static Path appLocation() {
+        String exe = System.getProperty("jpackage.app-path");
+        if (exe != null && !exe.isBlank()) {
+            Path p = Path.of(exe).toAbsolutePath().getParent();
+            if (p != null && !OS.isWindows() && p.getFileName() != null && p.getFileName().toString().equals("bin") && p.getParent() != null) p = p.getParent();
+            if (p != null) return p;
+        }
+        return jarLocation();
+    }
+
+    private static Path jarLocation() {
         try {
             Path p = Path.of(Dirs.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             return Files.isDirectory(p) ? p : p.getParent();
