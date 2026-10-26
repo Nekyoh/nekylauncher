@@ -23,6 +23,7 @@ jobs:
       - name: Self tests
         env:
           NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+          NEKY_CF_API_KEY: ${{ secrets.NEKY_CF_API_KEY }}
         shell: bash
         run: |
           chmod +x gradlew
@@ -32,6 +33,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+          NEKY_CF_API_KEY: ${{ secrets.NEKY_CF_API_KEY }}
         run: |
           sudo apt-get update && sudo apt-get install -y fakeroot
           bash packaging/package-linux.sh
@@ -40,6 +42,7 @@ jobs:
         if: runner.os == 'Windows'
         env:
           NEKY_MS_CLIENT_ID: ${{ secrets.NEKY_MS_CLIENT_ID }}
+          NEKY_CF_API_KEY: ${{ secrets.NEKY_CF_API_KEY }}
         shell: pwsh
         run: ./packaging/package-windows.ps1
 
