@@ -91,6 +91,14 @@ public final class Screenshots {
         shot(w, out.resolve(lang + "-4-instance-settings.png"));
         ui(() -> w.showPage(MainWindow.Page.ACCOUNTS));
         shot(w, out.resolve(lang + "-5-accounts.png"));
+        var skinSrv = demoSkinServer();
+        app.skins.add("Hoodie", com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoSkin(new Color(0x22D3EE), new Color(0x3B2A1E))), false, "c1");
+        app.skins.add("Neko slim", com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoSkin(new Color(0xF43F5E), new Color(0xE5E7EB))), true, "");
+        app.skins.add("Forest", com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoSkin(new Color(0x22C55E), new Color(0x111827))), false, "c2");
+        ui(() -> w.showPage(MainWindow.Page.SKINS));
+        Thread.sleep(2500);
+        shot(w, out.resolve(lang + "-5b-skins.png"));
+        skinSrv.stop(0);
         ui(() -> w.showPage(MainWindow.Page.SETTINGS));
         Thread.sleep(800);
         shot(w, out.resolve(lang + "-6-settings.png"));
@@ -121,10 +129,16 @@ public final class Screenshots {
         ui(() -> clickTab(w, 2));
         Thread.sleep(600);
         shot(w, out.resolve(lang + "-11-shaders.png"));
-        ui(() -> com.nekyoh.nekylauncher.ui.dialogs.ModrinthDialog.open(w, first, com.nekyoh.nekylauncher.modrinth.Modrinth.ProjectType.MOD, null));
+        ui(() -> com.nekyoh.nekylauncher.ui.dialogs.BrowseDialog.open(w, first, com.nekyoh.nekylauncher.modrinth.Modrinth.ProjectType.MOD, null));
         Thread.sleep(2500);
         shot(w, out.resolve(lang + "-12-modrinth.png"));
         ui(() -> closeModals(w));
+        app.settings.browseSource = "curseforge";
+        ui(() -> com.nekyoh.nekylauncher.ui.dialogs.BrowseDialog.open(w, first, com.nekyoh.nekylauncher.modrinth.Modrinth.ProjectType.MOD, null));
+        Thread.sleep(800);
+        shot(w, out.resolve(lang + "-12b-curseforge.png"));
+        ui(() -> closeModals(w));
+        app.settings.browseSource = "modrinth";
         // console window fed by a short real process
         Process pr = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-version").start();
         com.nekyoh.nekylauncher.game.GameProcess gp = new com.nekyoh.nekylauncher.game.GameProcess(first, pr,
@@ -140,6 +154,67 @@ public final class Screenshots {
     }
 
     private static final MainWindow[] frames = new MainWindow[1];
+
+    /** An original demo skin: shirt color + hair color, 64x64 layout. */
+    static BufferedImage demoSkin(Color shirt, Color hair) {
+        BufferedImage s = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        int skinC = 0xFFE0B48C, pants = 0xFF1F2937, shoes = 0xFF0B0D12;
+        int sh = shirt.getRGB(), dark = shirt.darker().getRGB(), hr = hair.getRGB();
+        // head (all faces) + hair
+        SelfTest.fill(s, 0, 8, 32, 8, skinC);
+        SelfTest.fill(s, 8, 0, 16, 8, hr);
+        SelfTest.fill(s, 0, 8, 32, 2, hr);
+        SelfTest.fill(s, 24, 8, 8, 6, hr);
+        SelfTest.fill(s, 9, 12, 2, 1, 0xFFFFFFFF); SelfTest.fill(s, 10, 12, 1, 1, 0xFF1E3A8A);
+        SelfTest.fill(s, 13, 12, 2, 1, 0xFFFFFFFF); SelfTest.fill(s, 13, 12, 1, 1, 0xFF1E3A8A);
+        SelfTest.fill(s, 11, 14, 2, 1, 0xFFB45309);
+        // body + arms (right arm in the classic block, left arm in the 64x64 block)
+        SelfTest.fill(s, 16, 20, 24, 12, sh);
+        SelfTest.fill(s, 20, 20, 8, 1, dark);
+        SelfTest.fill(s, 23, 21, 2, 6, dark);
+        SelfTest.fill(s, 40, 20, 16, 12, sh);
+        SelfTest.fill(s, 40, 29, 16, 3, skinC);
+        SelfTest.fill(s, 32, 52, 16, 12, sh);
+        SelfTest.fill(s, 32, 61, 16, 3, skinC);
+        // legs
+        SelfTest.fill(s, 0, 20, 16, 12, pants);
+        SelfTest.fill(s, 0, 30, 16, 2, shoes);
+        SelfTest.fill(s, 16, 52, 16, 12, pants);
+        SelfTest.fill(s, 16, 62, 16, 2, shoes);
+        return s;
+    }
+
+    static BufferedImage demoCape(Color c, Color stripe) {
+        BufferedImage img = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
+        SelfTest.fill(img, 0, 0, 22, 17, c.getRGB());
+        SelfTest.fill(img, 1, 7, 10, 2, stripe.getRGB());
+        return img;
+    }
+
+    /** Fake Minecraft profile API so the skins page renders offline. */
+    static com.sun.net.httpserver.HttpServer demoSkinServer() throws Exception {
+        byte[] skin = com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoSkin(new Color(0x22D3EE), new Color(0x3B2A1E)));
+        byte[] c1 = com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoCape(new Color(0xB91C1C), Color.WHITE));
+        byte[] c2 = com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoCape(new Color(0x6D28D9), new Color(0xFBBF24)));
+        byte[] c3 = com.nekyoh.nekylauncher.skins.SkinLibrary.png(demoCape(new Color(0x0F766E), new Color(0x99F6E4)));
+        com.sun.net.httpserver.HttpServer[] self = {null};
+        self[0] = SelfTest.serve((m, uri, h, body) -> {
+            String b = SelfTest.base(self[0]);
+            return switch (uri) {
+                case "/minecraft/profile" -> SelfTest.Resp.json("{\"id\":\"x\",\"name\":\"Nekyoh\",\"skins\":[{\"id\":\"s\",\"state\":\"ACTIVE\",\"url\":\"" + b + "/skin.png\",\"variant\":\"CLASSIC\"}],"
+                        + "\"capes\":[{\"id\":\"c1\",\"state\":\"ACTIVE\",\"url\":\"" + b + "/c1.png\",\"alias\":\"Migrator\"},"
+                        + "{\"id\":\"c2\",\"state\":\"INACTIVE\",\"url\":\"" + b + "/c2.png\",\"alias\":\"Cherry\"},"
+                        + "{\"id\":\"c3\",\"state\":\"INACTIVE\",\"url\":\"" + b + "/c3.png\",\"alias\":\"Purple Heart\"}]}");
+                case "/skin.png" -> new SelfTest.Resp(200, "image/png", skin);
+                case "/c1.png" -> new SelfTest.Resp(200, "image/png", c1);
+                case "/c2.png" -> new SelfTest.Resp(200, "image/png", c2);
+                case "/c3.png" -> new SelfTest.Resp(200, "image/png", c3);
+                default -> null;
+            };
+        });
+        com.nekyoh.nekylauncher.skins.SkinApi.setProfileUrlForTests(SelfTest.base(self[0]) + "/minecraft/profile");
+        return self[0];
+    }
 
     private static void closeModals(MainWindow w) {
         JLayeredPane lp = w.getRootPane().getLayeredPane();

@@ -123,6 +123,32 @@ public final class Http {
         return new Response(r.statusCode(), r.body());
     }
 
+    /** Generic authenticated request (PUT/DELETE/POST...) with an optional body. */
+    public static Response request(String method, String url, Map<String, String> headers, String contentType, byte[] body) throws IOException {
+        HttpRequest.BodyPublisher pub = body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body);
+        HttpRequest.Builder b = req(url).method(method, pub).header("Accept", "application/json");
+        if (contentType != null) b.header("Content-Type", contentType);
+        headers.forEach(b::header);
+        HttpResponse<String> r = send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        return new Response(r.statusCode(), r.body());
+    }
+
+    /** multipart/form-data with text fields and one file part. */
+    public static Response postMultipart(String url, Map<String, String> headers, Map<String, String> fields,
+                                         String fileField, String fileName, String fileType, byte[] file) throws IOException {
+        String boundary = "----NekyBoundary" + Long.toHexString(System.nanoTime());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        for (var f : fields.entrySet()) {
+            out.writeBytes(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + f.getKey() + "\"\r\n\r\n"
+                    + f.getValue() + "\r\n").getBytes(StandardCharsets.UTF_8));
+        }
+        out.writeBytes(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + fileField + "\"; filename=\"" + fileName
+                + "\"\r\nContent-Type: " + fileType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.writeBytes(file);
+        out.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return request("POST", url, headers, "multipart/form-data; boundary=" + boundary, out.toByteArray());
+    }
+
     public static String formEncode(Map<String, String> form) {
         StringJoiner j = new StringJoiner("&");
         form.forEach((k, v) -> j.add(enc(k) + "=" + enc(v)));

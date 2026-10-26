@@ -38,8 +38,9 @@ public final class Modrinth {
         if (gameVersion != null && !gameVersion.isBlank()) facets.add(new JArray().add("versions:" + gameVersion));
         if (type == ProjectType.MOD && loader != null && loader.isModded()) {
             JArray l = new JArray().add("categories:" + loader.modrinth);
-            // Quilt can load most Fabric mods
+            // Quilt can load most Fabric mods; NeoForge 1.20.1 still runs Forge mods
             if (loader == LoaderType.QUILT) l.add("categories:fabric");
+            if (neoForgeLegacy(loader, gameVersion)) l.add("categories:forge");
             facets.add(l);
         }
         String url = API + "/search?limit=" + limit + "&offset=" + offset
@@ -56,10 +57,18 @@ public final class Modrinth {
         return new SearchResult(hits, j.integer("total_hits", hits.size()));
     }
 
+    /** NeoForge for 1.20.1 is a fork of Forge 47 and loads Forge mods too. */
+    public static boolean neoForgeLegacy(LoaderType loader, String gameVersion) {
+        return loader == LoaderType.NEOFORGE && "1.20.1".equals(gameVersion);
+    }
+
     /** Loader names Modrinth accepts for files of this type on this instance. */
-    public static List<String> loaderFilter(ProjectType type, LoaderType loader) {
+    public static List<String> loaderFilter(ProjectType type, LoaderType loader) { return loaderFilter(type, loader, null); }
+
+    public static List<String> loaderFilter(ProjectType type, LoaderType loader, String gameVersion) {
         return switch (type) {
-            case MOD -> loader == LoaderType.QUILT ? List.of("quilt", "fabric") : List.of(loader.modrinth);
+            case MOD -> loader == LoaderType.QUILT ? List.of("quilt", "fabric")
+                    : neoForgeLegacy(loader, gameVersion) ? List.of("neoforge", "forge") : List.of(loader.modrinth);
             case RESOURCEPACK -> List.of("minecraft");
             case SHADER -> List.of(); // iris / optifine / canvas: any
             case MODPACK -> List.of();
@@ -147,7 +156,7 @@ public final class Modrinth {
                 try {
                     Version dv = null;
                     if (dep.str("version_id") != null) dv = version(dep.str("version_id"));
-                    else if (pid != null) dv = best(versions(pid, loaderFilter(type, loader), gameVersion));
+                    else if (pid != null) dv = best(versions(pid, loaderFilter(type, loader, gameVersion), gameVersion));
                     if (dv != null) queue.add(dv);
                 } catch (IOException e) {
                     Log.warn("Dependency " + pid + " not resolved: " + e.getMessage());

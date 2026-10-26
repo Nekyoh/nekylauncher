@@ -6,7 +6,7 @@ import com.nekyoh.nekylauncher.i18n.I18n;
 import com.nekyoh.nekylauncher.instance.Instance;
 import com.nekyoh.nekylauncher.ui.*;
 import com.nekyoh.nekylauncher.ui.dialogs.ImportFlow;
-import com.nekyoh.nekylauncher.ui.dialogs.ModrinthDialog;
+import com.nekyoh.nekylauncher.ui.dialogs.BrowseDialog;
 import com.nekyoh.nekylauncher.ui.dialogs.NewInstanceDialog;
 import com.nekyoh.nekylauncher.ui.kit.*;
 
@@ -74,7 +74,7 @@ public final class HomePage extends JPanel {
         quick.add(action(Icons.Name.PLUS, I18n.tr("home.quick.new"), I18n.tr("home.quick.newDesc"), Theme.CYAN, () -> NewInstanceDialog.open(window)));
         quick.add(action(Icons.Name.DOWNLOAD, I18n.tr("home.quick.import"), I18n.tr("home.quick.importDesc"), Theme.AMBER, () -> ImportFlow.pickAndImport(window)));
         quick.add(action(Icons.Name.PACKAGE, I18n.tr("home.quick.modpacks"), I18n.tr("home.quick.modpacksDesc"), Theme.GREEN,
-                () -> ModrinthDialog.openModpacks(window)));
+                () -> BrowseDialog.openModpacks(window)));
         quick.setPreferredSize(new Dimension(600, 76));
 
         JPanel recentHead = Ui.transparent(new BorderLayout());

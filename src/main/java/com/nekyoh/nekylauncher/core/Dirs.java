@@ -120,6 +120,7 @@ public final class Dirs {
     public Path runtimes() { return root.resolve("runtimes"); }
     public Path cache() { return root.resolve("cache"); }
     public Path logs() { return root.resolve("logs"); }
+    public Path skins() { return root.resolve("skins"); }
     public Path settingsFile() { return root.resolve("settings.json"); }
     public Path accountsFile() { return root.resolve("accounts.json"); }
 

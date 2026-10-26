@@ -12,7 +12,8 @@ public final class Icons {
     public enum Name {
         HOME, GRID, USER, SETTINGS, PLAY, PLUS, FOLDER, DOWNLOAD, EXPORT, TRASH, SEARCH, X, MINUS, SQUARE, RESTORE,
         CHEVRON_LEFT, CHEVRON_RIGHT, CHEVRON_DOWN, CHECK, CUBE, IMAGE, SPARKLES, GLOBE, TERMINAL, COFFEE, MORE,
-        COPY, EXTERNAL, REFRESH, STOP, INFO, WARNING, CLOCK, EDIT, MICROSOFT, KEY, CHIP, MONITOR, UPLOAD, STAR, PACKAGE
+        COPY, EXTERNAL, REFRESH, STOP, INFO, WARNING, CLOCK, EDIT, MICROSOFT, KEY, CHIP, MONITOR, UPLOAD, STAR, PACKAGE,
+        VIDEO, SHIRT
     }
 
     public static Icon get(Name n, int size, Color color) { return new VIcon(n, size, color); }
@@ -249,6 +250,17 @@ public final class Icons {
                 line(g, 8, 20, 16, 20);
                 line(g, 12, 16, 12, 20);
             }
+            case VIDEO -> {
+                rr(g, 2.5, 5, 19, 14, 4);
+                Path2D t = new Path2D.Double();
+                t.moveTo(10, 9);
+                t.lineTo(15.5, 12);
+                t.lineTo(10, 15);
+                t.closePath();
+                g.fill(t);
+                g.draw(t);
+            }
+            case SHIRT -> poly(g, true, 8, 3.5, 4, 6, 2.5, 10.5, 6, 11.5, 6, 20.5, 18, 20.5, 18, 11.5, 21.5, 10.5, 20, 6, 16, 3.5, 14, 5.5, 10, 5.5);
             case STAR -> poly(g, true, 12, 3, 14.6, 8.9, 21, 9.5, 16.2, 13.8, 17.6, 20.2, 12, 16.9, 6.4, 20.2, 7.8, 13.8, 3, 9.5, 9.4, 8.9);
         }
     }

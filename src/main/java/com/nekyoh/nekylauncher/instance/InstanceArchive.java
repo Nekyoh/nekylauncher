@@ -1,6 +1,7 @@
 package com.nekyoh.nekylauncher.instance;
 
 import com.nekyoh.nekylauncher.AppInfo;
+import com.nekyoh.nekylauncher.curseforge.CurseForge;
 import com.nekyoh.nekylauncher.i18n.I18n;
 import com.nekyoh.nekylauncher.loader.LoaderType;
 import com.nekyoh.nekylauncher.util.*;
@@ -8,15 +9,9 @@ import com.nekyoh.nekylauncher.util.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.*;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -37,7 +32,9 @@ public final class InstanceArchive {
 
     public record Entry(String name, boolean directory, long size) {}
 
-    public record ImportResult(Instance instance, List<String> warnings) {}
+    public record ImportResult(Instance instance, List<String> warnings, List<CurseForge.Blocked> blocked) {
+        public ImportResult(Instance instance, List<String> warnings) { this(instance, warnings, List.of()); }
+    }
 
     // ------------------------------------------------------------------ export
 
@@ -268,35 +265,56 @@ public final class InstanceArchive {
             Path game = dir.resolve("minecraft");
             Path mods = game.resolve("mods");
             Files.createDirectories(mods);
-            HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS).connectTimeout(Duration.ofSeconds(20)).build();
-            List<JObject> files = m.arrOrEmpty("files").objects();
-            int i = 0;
-            for (JObject f : files) {
-                if (cancel != null) cancel.check();
-                i++;
-                long project = f.lng("projectID", 0), file = f.lng("fileID", 0);
-                progress.stage(I18n.tr("progress.downloadingFile", project + "/" + file, i, files.size()));
-                progress.fraction((double) i / files.size());
+            List<CurseForge.Blocked> blocked = new ArrayList<>();
+            List<JObject> files = new ArrayList<>();
+            for (JObject f : m.arrOrEmpty("files").objects()) if (f.bool("required", true)) files.add(f);
+            if (!files.isEmpty() && !CurseForge.available()) {
+                warnings.add(I18n.tr("cf.importNoKey", files.size()));
+            } else if (!files.isEmpty()) {
+                progress.stage(I18n.tr("progress.resolvingFiles"));
+                Set<Long> fileIds = new LinkedHashSet<>(), modIds = new LinkedHashSet<>();
+                for (JObject f : files) {
+                    fileIds.add(f.lng("fileID", 0));
+                    modIds.add(f.lng("projectID", 0));
+                }
+                Map<Long, CurseForge.FileInfo> infos = CurseForge.files(fileIds);
+                Map<Long, CurseForge.Hit> projects;
                 try {
-                    HttpRequest req = HttpRequest.newBuilder(URI.create("https://www.curseforge.com/api/v1/mods/" + project + "/files/" + file + "/download"))
-                            .header("User-Agent", AppInfo.USER_AGENT).timeout(Duration.ofMinutes(3)).GET().build();
-                    HttpResponse<InputStream> r = client.send(req, HttpResponse.BodyHandlers.ofInputStream());
-                    if (r.statusCode() / 100 != 2) {
-                        r.body().close();
-                        throw new IOException("HTTP " + r.statusCode());
-                    }
-                    String path = r.uri().getPath();
-                    String fn = URLDecoder.decode(path.substring(path.lastIndexOf('/') + 1), StandardCharsets.UTF_8);
-                    if (fn.isBlank()) fn = project + "-" + file + ".jar";
-                    Path target = FileUtil.safeResolve(mods, fn);
-                    try (InputStream in = r.body()) {
-                        Files.copy(in, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new CancelToken.CancelledException();
+                    projects = CurseForge.mods(modIds);
                 } catch (IOException e) {
-                    warnings.add("CurseForge " + project + "/" + file + " (" + e.getMessage() + ")");
+                    projects = Map.of(); // only used for folder routing and names
+                }
+                int i = 0;
+                for (JObject f : files) {
+                    if (cancel != null) cancel.check();
+                    i++;
+                    long project = f.lng("projectID", 0), file = f.lng("fileID", 0);
+                    CurseForge.FileInfo fi = infos.get(file);
+                    CurseForge.Hit h = projects.get(project);
+                    String label = h != null ? h.title() : "CurseForge " + project + "/" + file;
+                    if (fi == null) {
+                        warnings.add(label + " (" + I18n.tr("cf.fileMissing") + ")");
+                        continue;
+                    }
+                    progress.stage(I18n.tr("progress.downloadingFile", fi.fileName(), i, files.size()));
+                    progress.fraction((double) i / files.size());
+                    if (fi.downloadUrl() == null) {
+                        blocked.add(new CurseForge.Blocked(label + " — " + fi.fileName(),
+                                h != null ? h.pageUrl() : "https://www.curseforge.com/projects/" + project));
+                        continue;
+                    }
+                    Path folder = switch (h == null ? 6 : h.classId()) {
+                        case 12 -> game.resolve("resourcepacks");
+                        case 6552 -> game.resolve("shaderpacks");
+                        default -> mods;
+                    };
+                    try {
+                        Http.download(fi.downloadUrl(), FileUtil.safeResolve(folder, fi.fileName()), fi.sha1(), null, cancel);
+                    } catch (CancelToken.CancelledException e) {
+                        throw e;
+                    } catch (IOException e) {
+                        warnings.add(label + " (" + e.getMessage() + ")");
+                    }
                 }
             }
             extractPrefix(zf, m.str("overrides", "overrides") + "/", game, progress);
@@ -307,7 +325,7 @@ public final class InstanceArchive {
             inst.loaderVersion = loaderVersion;
             inst.versionId = loader == LoaderType.VANILLA ? mc : "";
             manager.register(inst);
-            return new ImportResult(inst, warnings);
+            return new ImportResult(inst, warnings, blocked);
         } catch (IOException | RuntimeException e) {
             FileUtil.deleteRecursive(dir);
             throw e;

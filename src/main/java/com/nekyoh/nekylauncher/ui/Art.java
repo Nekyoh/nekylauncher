@@ -157,6 +157,86 @@ public final class Art {
         g.dispose();
     }
 
+    /** Forget the cached head so the next paint downloads the account's new skin. */
+    public static void invalidate(Account a) {
+        if (a == null) return;
+        HEADS.remove(a.uuid);
+        LOADING.remove(a.uuid);
+    }
+
+    // ------------------------------------------------------------------ full skin preview
+
+    /**
+     * Flat front or back view of a skin, 16×32 skin pixels scaled by {@code px}. Handles the classic
+     * (4px) and slim (3px) arm models, the legacy 64×32 layout (left limbs mirror the right ones),
+     * the second layer and, on the back view, the cape.
+     */
+    public static BufferedImage renderSkin(BufferedImage skin, boolean slim, BufferedImage cape, boolean back, int px) {
+        BufferedImage out = new BufferedImage(16 * px, 32 * px, BufferedImage.TYPE_INT_ARGB);
+        if (skin == null || skin.getWidth() < 64) return out;
+        int s = skin.getWidth() / 64;
+        boolean legacy = skin.getHeight() * 2 == skin.getWidth();
+        int aw = slim ? 3 : 4;
+        Graphics2D g = out.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        Part p = new Part(g, skin, s, px);
+
+        if (!back) {
+            p.face(8, 8, 8, 8, 4, 0, false);          // head
+            p.face(20, 20, 8, 12, 4, 8, false);       // body
+            p.face(44, 20, aw, 12, 4 - aw, 8, false); // right arm (viewer's left)
+            p.face(4, 20, 4, 12, 4, 20, false);       // right leg
+            if (legacy) {
+                p.face(44, 20, aw, 12, 12, 8, true);
+                p.face(4, 20, 4, 12, 8, 20, true);
+            } else {
+                p.face(36, 52, aw, 12, 12, 8, false);
+                p.face(20, 52, 4, 12, 8, 20, false);
+                p.face(20, 36, 8, 12, 4, 8, false);
+                p.face(44, 36, aw, 12, 4 - aw, 8, false);
+                p.face(52, 52, aw, 12, 12, 8, false);
+                p.face(4, 36, 4, 12, 4, 20, false);
+                p.face(4, 52, 4, 12, 8, 20, false);
+            }
+            p.face(40, 8, 8, 8, 4, 0, false);         // hat
+        } else {
+            int rb = 44 + aw + 4;                     // right arm back u
+            int lb = 36 + aw + 4;                     // left arm back u
+            p.face(24, 8, 8, 8, 4, 0, false);
+            p.face(32, 20, 8, 12, 4, 8, false);
+            p.face(rb, 20, aw, 12, 12, 8, false);     // right arm now on viewer's right
+            p.face(12, 20, 4, 12, 8, 20, false);      // right leg
+            if (legacy) {
+                p.face(rb, 20, aw, 12, 4 - aw, 8, true);
+                p.face(12, 20, 4, 12, 4, 20, true);
+            } else {
+                p.face(lb, 52, aw, 12, 4 - aw, 8, false);
+                p.face(28, 52, 4, 12, 4, 20, false);
+                p.face(32, 36, 8, 12, 4, 8, false);
+                p.face(rb, 36, aw, 12, 12, 8, false);
+                p.face(lb + 16, 52, aw, 12, 4 - aw, 8, false);
+                p.face(12, 36, 4, 12, 8, 20, false);
+                p.face(12, 52, 4, 12, 4, 20, false);
+            }
+            p.face(56, 8, 8, 8, 4, 0, false);
+            if (cape != null && cape.getWidth() >= 22) {
+                int cs = Math.max(1, cape.getWidth() / 64);
+                g.drawImage(cape, 3 * px, 8 * px, 13 * px, 24 * px, cs, cs, 11 * cs, 17 * cs, null);
+            }
+        }
+        g.dispose();
+        return out;
+    }
+
+    private record Part(Graphics2D g, BufferedImage skin, int s, int px) {
+        /** Copies the w×h skin region at (u,v) to (x,y) on the 16×32 canvas, optionally mirrored. */
+        void face(int u, int v, int w, int h, int x, int y, boolean mirror) {
+            int sx1 = u * s, sx2 = (u + w) * s;
+            if (mirror) { int t = sx1; sx1 = sx2; sx2 = t; }
+            g.drawImage(skin, x * px, y * px, (x + w) * px, (y + h) * px, sx1, v * s, sx2, (v + h) * s, null);
+        }
+    }
+
     static BufferedImage headFromSkin(BufferedImage skin) {
         if (skin == null || skin.getWidth() < 64) return null;
         int scale = skin.getWidth() / 64;

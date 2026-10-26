@@ -27,10 +27,10 @@ public final class AccountDialogs {
             Stack body = Stack.v(12);
             body.with(Ui.paragraph(I18n.tr("ms.setupNeeded"), Theme.TEXT_2, 13));
             Modal m = Modal.open(I18n.tr("ms.title"), body, 520);
-            NButton go = new NButton(I18n.tr("ms.openSettings"), Icons.Name.SETTINGS, NButton.Variant.PRIMARY);
+            NButton go = new NButton(I18n.tr("ms.openSite"), Icons.Name.EXTERNAL, NButton.Variant.PRIMARY);
             go.onClick(() -> {
                 m.close();
-                window.showPage(MainWindow.Page.SETTINGS);
+                OS.openUrl(com.nekyoh.nekylauncher.AppInfo.LAUNCHER_SITE);
             });
             m.footer(new NButton(I18n.tr("common.close"), NButton.Variant.GHOST).onClick(m::close), go);
             return;

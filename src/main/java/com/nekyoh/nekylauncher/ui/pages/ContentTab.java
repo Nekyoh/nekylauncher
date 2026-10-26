@@ -9,7 +9,7 @@ import com.nekyoh.nekylauncher.modrinth.Modrinth;
 import com.nekyoh.nekylauncher.ui.Icons;
 import com.nekyoh.nekylauncher.ui.MainWindow;
 import com.nekyoh.nekylauncher.ui.Theme;
-import com.nekyoh.nekylauncher.ui.dialogs.ModrinthDialog;
+import com.nekyoh.nekylauncher.ui.dialogs.BrowseDialog;
 import com.nekyoh.nekylauncher.ui.kit.*;
 import com.nekyoh.nekylauncher.util.FileUtil;
 import com.nekyoh.nekylauncher.util.OS;
@@ -51,7 +51,7 @@ final class ContentTab extends JPanel {
         bar.with(filter, summary).glue();
         if (kind != ContentItem.Kind.WORLD) {
             NButton browse = new NButton(I18n.tr("content.browse"), Icons.Name.SEARCH, NButton.Variant.PRIMARY);
-            browse.onClick(() -> ModrinthDialog.open(window, inst, projectType(), this::reload));
+            browse.onClick(() -> BrowseDialog.open(window, inst, projectType(), this::reload));
             bar.with(browse);
         }
         NButton add = new NButton(I18n.tr("content.addFiles"), Icons.Name.PLUS, NButton.Variant.SECONDARY);
@@ -97,7 +97,7 @@ final class ContentTab extends JPanel {
             boolean irisCapable = inst.loader == LoaderType.FABRIC || inst.loader == LoaderType.QUILT || inst.loader == LoaderType.NEOFORGE;
             if (irisCapable) {
                 return infoBanner(I18n.tr("content.shaderHint"), Theme.CYAN, I18n.tr("content.installIris"),
-                        () -> ModrinthDialog.installBySlug(window, inst, "iris", this::reload));
+                        () -> BrowseDialog.installBySlug(window, inst, "iris", this::reload));
             }
             return infoBanner(I18n.tr("content.shaderHintOther"), Theme.CYAN, null, null);
         }

@@ -6,6 +6,13 @@ public final class AppInfo {
     public static final String NAME = "NekyLauncher";
     public static final String AUTHOR = "Nekyoh";
     public static final String VERSION = readVersion();
+    // official links shown in the sidebar
+    public static final String SITE = "https://nekyoh.tech/";
+    public static final String LAUNCHER_SITE = "https://launcher.nekyoh.tech/";
+    public static final String EPICCRAFT_SITE = "https://epiccraft.nekyoh.tech/";
+    public static final String YOUTUBE_NEKYOH = "https://www.youtube.com/@Nezoru";
+    public static final String YOUTUBE_TEKYOH = "https://www.youtube.com/@Tekyoh01";
+
     /** Modrinth asks for a uniquely identifying user agent: author/project/version. */
     public static final String USER_AGENT = "Nekyoh/NekyLauncher/" + VERSION + " (github.com/nekyoh/nekylauncher)";
 
@@ -14,6 +21,9 @@ public final class AppInfo {
      * With it, users sign in with one click and never have to configure anything.
      */
     public static final String BUILTIN_MS_CLIENT_ID = readBuildProperty("msClientId");
+
+    /** CurseForge API key compiled into this build ("" = CurseForge browsing disabled). */
+    public static final String BUILTIN_CF_API_KEY = readBuildProperty("cfApiKey");
 
     private static String readBuildProperty(String key) {
         try (var in = AppInfo.class.getResourceAsStream("/nekylauncher/build.properties")) {

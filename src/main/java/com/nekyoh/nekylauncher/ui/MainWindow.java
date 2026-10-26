@@ -18,7 +18,7 @@ import java.awt.event.WindowEvent;
 
 /** The launcher window: sidebar navigation + pages. */
 public final class MainWindow extends NFrame {
-    public enum Page { HOME, INSTANCES, INSTANCE, ACCOUNTS, SETTINGS }
+    public enum Page { HOME, INSTANCES, INSTANCE, SKINS, ACCOUNTS, SETTINGS }
 
     public final LaunchController launch;
     private final JPanel pages = new JPanel(new CardLayout());
@@ -26,6 +26,7 @@ public final class MainWindow extends NFrame {
     private HomePage home;
     private InstancesPage instancesPage;
     private InstancePage instancePage;
+    private SkinsPage skinsPage;
     private AccountsPage accountsPage;
     private SettingsPage settingsPage;
     private Page current = Page.HOME;
@@ -63,11 +64,13 @@ public final class MainWindow extends NFrame {
         home = new HomePage(this);
         instancesPage = new InstancesPage(this);
         instancePage = new InstancePage(this);
+        skinsPage = new SkinsPage(this);
         accountsPage = new AccountsPage(this);
         settingsPage = new SettingsPage(this);
         pages.add(home, Page.HOME.name());
         pages.add(instancesPage, Page.INSTANCES.name());
         pages.add(instancePage, Page.INSTANCE.name());
+        pages.add(skinsPage, Page.SKINS.name());
         pages.add(accountsPage, Page.ACCOUNTS.name());
         pages.add(settingsPage, Page.SETTINGS.name());
         body.add(sidebar, BorderLayout.WEST);
@@ -92,6 +95,7 @@ public final class MainWindow extends NFrame {
         switch (p) {
             case HOME -> home.refresh();
             case INSTANCES -> instancesPage.refresh();
+            case SKINS -> skinsPage.refresh();
             case ACCOUNTS -> accountsPage.refresh();
             case SETTINGS -> settingsPage.refresh();
             default -> { }
@@ -110,6 +114,7 @@ public final class MainWindow extends NFrame {
         home.refresh();
         instancesPage.refresh();
         accountsPage.refresh();
+        if (current == Page.SKINS) skinsPage.refresh();
         instancePage.refreshHeader();
     }
 

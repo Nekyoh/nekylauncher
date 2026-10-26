@@ -11,7 +11,7 @@ NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR 
 
 NekyLauncher does not contain or redistribute any Minecraft game files. Game files,
 libraries, assets and Java runtimes are downloaded by the user's computer directly from
-Mojang's servers (and from the official mod loader / Modrinth / Adoptium servers),
+Mojang's servers (and from the official mod loader / Modrinth / CurseForge / Adoptium servers),
 exactly like the official launcher does. "Minecraft" is a trademark of Mojang Synergies AB.
 Use of the game is subject to the Minecraft EULA: https://www.minecraft.net/eula
 
@@ -26,5 +26,8 @@ No other third-party libraries are used: HTTP, JSON, ZIP, XML and the UI are bui
 ## Services used at runtime
 - Mojang / Minecraft services (versions, libraries, assets, Java runtimes, Microsoft/Xbox sign-in)
 - Fabric, Quilt, Forge and NeoForge metadata and maven repositories
+- Mojang / Minecraft services profile API (skin upload, arm model and cape selection)
 - Modrinth API (search and downloads)
+- CurseForge Core API (search and downloads; files whose authors disallow third-party
+  distribution are never downloaded by the launcher, the user is sent to the CurseForge page)
 - Eclipse Adoptium API (only when Mojang has no Java runtime for the platform)

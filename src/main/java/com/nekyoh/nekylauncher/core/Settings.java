@@ -33,6 +33,8 @@ public final class Settings {
     public int windowWidth = 1200;
     public int windowHeight = 740;
     public boolean windowMaximized = false;
+    /** Last content source picked in the browser: "modrinth" or "curseforge". */
+    public String browseSource = "modrinth";
 
     private transient Path file;
 
@@ -80,6 +82,7 @@ public final class Settings {
             s.windowWidth = o.integer("windowWidth", s.windowWidth);
             s.windowHeight = o.integer("windowHeight", s.windowHeight);
             s.windowMaximized = o.bool("windowMaximized", s.windowMaximized);
+            s.browseSource = o.str("browseSource", s.browseSource);
         } catch (Exception e) {
             Log.error("Could not read settings, using defaults", e);
         }
@@ -104,7 +107,8 @@ public final class Settings {
                 .put("lastInstance", lastInstance)
                 .put("windowWidth", windowWidth)
                 .put("windowHeight", windowHeight)
-                .put("windowMaximized", windowMaximized);
+                .put("windowMaximized", windowMaximized)
+                .put("browseSource", browseSource);
         JArray j = new JArray();
         extraJavaPaths.forEach(j::add);
         o.put("extraJavaPaths", j);

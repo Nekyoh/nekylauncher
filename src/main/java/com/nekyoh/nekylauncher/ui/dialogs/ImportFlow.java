@@ -42,6 +42,7 @@ public final class ImportFlow {
                 Modal.message(I18n.tr("import.warningsTitle"), I18n.tr("import.warnings", res.warnings().size()) + "\n\n"
                         + String.join("\n", res.warnings().stream().limit(15).toList()));
             }
+            if (!res.blocked().isEmpty()) BrowseDialog.showBlocked(res.blocked());
             Toast.show(I18n.tr("import.done", res.instance().name), Toast.Kind.SUCCESS, I18n.tr("instance.play"), () -> window.launch.play(res.instance()));
             window.openInstance(res.instance());
         }, err -> {

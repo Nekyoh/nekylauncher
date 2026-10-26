@@ -113,10 +113,6 @@ public final class SettingsPage extends JPanel {
         concRow.add(conc, BorderLayout.CENTER);
         concRow.add(concLabel, BorderLayout.EAST);
 
-        // microsoft
-        NTextField clientId = new NTextField("00000000-0000-0000-0000-000000000000");
-        clientId.setText(s.msClientId);
-        clientId.onChange(t -> { s.msClientId = t.trim(); s.save(); });
 
         // folders
         com.nekyoh.nekylauncher.core.Dirs dirs = App.get().dirs;
@@ -160,22 +156,12 @@ public final class SettingsPage extends JPanel {
                 javaButtons, javaList));
         content.with(InstanceSettingsTab.section(I18n.tr("settings.section.downloads"),
                 Ui.field(I18n.tr("settings.concurrent"), I18n.tr("settings.concurrentHint"), concRow)));
-        content.with(InstanceSettingsTab.section(I18n.tr("settings.section.microsoft"),
-                Ui.field(I18n.tr("settings.clientId"), com.nekyoh.nekylauncher.AppInfo.BUILTIN_MS_CLIENT_ID.isBlank() ? I18n.tr("settings.clientIdHint") : I18n.tr("settings.clientIdBuiltin"), clientId),
-                linkRow()));
         content.with(InstanceSettingsTab.section(I18n.tr("settings.section.storage"),
                 Ui.field(I18n.tr("settings.dataDir"), I18n.tr("settings.dataDirHint"), folderRow)));
         content.with(about());
         content.pad(26, 28, 32, 28);
         add(NScroll.vertical(content, Theme.BG), BorderLayout.CENTER);
         loadJava(false);
-    }
-
-    private JComponent linkRow() {
-        Stack r = Stack.h(18);
-        r.with(Ui.link(I18n.tr("settings.clientIdGuide"), () -> OS.openUrl("https://learn.microsoft.com/entra/identity-platform/quickstart-register-app")),
-                Ui.link(I18n.tr("settings.clientIdForm"), () -> OS.openUrl("https://aka.ms/mce-reviewappid")));
-        return r;
     }
 
     private static JComponent row(String label, JComponent c) {

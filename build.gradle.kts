@@ -28,10 +28,15 @@ tasks.withType<JavaCompile>().configureEach {
 val msClientId: String = (project.findProperty("msClientId") as String?)?.takeIf { it.isNotBlank() }
     ?: System.getenv("NEKY_MS_CLIENT_ID") ?: ""
 
+// CurseForge API key (https://console.curseforge.com): -PcfApiKey=..., gradle.properties or NEKY_CF_API_KEY
+val cfApiKey: String = (project.findProperty("cfApiKey") as String?)?.takeIf { it.isNotBlank() }
+    ?: System.getenv("NEKY_CF_API_KEY") ?: ""
+
 tasks.processResources {
     inputs.property("msClientId", msClientId)
+    inputs.property("cfApiKey", cfApiKey)
     filesMatching("nekylauncher/build.properties") {
-        expand("msClientId" to msClientId)
+        expand("msClientId" to msClientId, "cfApiKey" to cfApiKey)
     }
 }
 

@@ -47,6 +47,13 @@ public final class SelfTest {
         run("data folder change (move + checks)", SelfTest::dataFolder);
         run("microsoft browser login loopback", SelfTest::browserLogin);
         run("loader icon urls", SelfTest::loaderIcons);
+        run("skin render (classic, slim, legacy, cape)", SelfTest::skinRender);
+        run("skin presets + validation", SelfTest::skinLibrary);
+        run("skin api (multipart upload, capes)", SelfTest::skinApi);
+        run("curseforge fingerprint (murmur2)", SelfTest::cfFingerprint);
+        run("curseforge loader matching", SelfTest::cfLoaders);
+        run("curseforge search + install with dependencies", SelfTest::cfInstall);
+        run("curseforge modpack import via api", SelfTest::cfModpack);
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
@@ -578,6 +585,329 @@ public final class SelfTest {
         check(LoaderType.VANILLA.iconUrl() == null, "vanilla keeps the block icon");
         eq(LoaderType.NEOFORGE.iconUrl(), "https://github.com/neoforged.png?size=128");
         eq(LoaderType.FORGE.iconUrl(), "https://github.com/MinecraftForge.png?size=128");
+    }
+
+    // ------------------------------------------------------------------ skins
+
+    static void fill(java.awt.image.BufferedImage img, int x, int y, int w, int h, int argb) {
+        for (int yy = y; yy < y + h; yy++) for (int xx = x; xx < x + w; xx++) img.setRGB(xx, yy, argb);
+    }
+
+    static final int RED = 0xFFFF0000, GREEN = 0xFF00FF00, BLUE = 0xFF0000FF, YELLOW = 0xFFFFFF00,
+            CYAN = 0xFF00FFFF, MAGENTA = 0xFFFF00FF, WHITE = 0xFFFFFFFF, ORANGE = 0xFFFF8800;
+
+    static void skinRender() {
+        var skin = new java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        fill(skin, 8, 8, 8, 8, RED);        // head front
+        fill(skin, 20, 20, 8, 12, GREEN);   // body front
+        fill(skin, 44, 20, 4, 12, BLUE);    // right arm front
+        fill(skin, 36, 52, 4, 12, YELLOW);  // left arm front
+        fill(skin, 32, 20, 8, 12, CYAN);    // body back
+        fill(skin, 52, 20, 4, 12, MAGENTA); // right arm back (classic)
+        var f = com.nekyoh.nekylauncher.ui.Art.renderSkin(skin, false, null, false, 1);
+        eq(f.getWidth(), 16);
+        eq(f.getHeight(), 32);
+        eq(f.getRGB(8, 4), RED);
+        eq(f.getRGB(8, 14), GREEN);
+        eq(f.getRGB(0, 10), BLUE);
+        eq(f.getRGB(15, 10), YELLOW);
+        var slim = com.nekyoh.nekylauncher.ui.Art.renderSkin(skin, true, null, false, 1);
+        eq(slim.getRGB(0, 10) >>> 24, 0);
+        eq(slim.getRGB(1, 10), BLUE);
+        eq(slim.getRGB(15, 10) >>> 24, 0);
+        var back = com.nekyoh.nekylauncher.ui.Art.renderSkin(skin, false, null, true, 1);
+        eq(back.getRGB(8, 14), CYAN);
+        eq(back.getRGB(13, 10), MAGENTA);
+        var cape = new java.awt.image.BufferedImage(64, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        fill(cape, 1, 1, 10, 16, ORANGE);
+        var caped = com.nekyoh.nekylauncher.ui.Art.renderSkin(skin, false, cape, true, 2);
+        eq(caped.getRGB(16, 28), ORANGE);
+        // legacy 64x32: the left arm is the right arm mirrored
+        var legacy = new java.awt.image.BufferedImage(64, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        fill(legacy, 44, 20, 4, 12, BLUE);
+        fill(legacy, 44, 20, 1, 12, WHITE);
+        var lf = com.nekyoh.nekylauncher.ui.Art.renderSkin(legacy, false, null, false, 1);
+        eq(lf.getRGB(0, 10), WHITE);
+        eq(lf.getRGB(15, 10), WHITE);
+        eq(lf.getRGB(12, 10), BLUE);
+        check(!com.nekyoh.nekylauncher.skins.SkinLibrary.looksSlim(skin), "classic arm back covers column 54");
+        fill(skin, 54, 20, 2, 12, 0);
+        check(com.nekyoh.nekylauncher.skins.SkinLibrary.looksSlim(skin), "column 54 empty -> slim guess");
+    }
+
+    static byte[] png(int w, int h) throws Exception {
+        var img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        fill(img, 0, 0, Math.min(8, w), Math.min(8, h), RED);
+        return com.nekyoh.nekylauncher.skins.SkinLibrary.png(img);
+    }
+
+    static void skinLibrary() throws Exception {
+        Path dir = Files.createTempDirectory("neky-skins").resolve("skins");
+        var lib = new com.nekyoh.nekylauncher.skins.SkinLibrary(dir);
+        var p = lib.add("  Neko  ", png(64, 64), true, "cape-1");
+        lib.add("", png(64, 32), false, null);
+        eq(p.name, "Neko");
+        var again = new com.nekyoh.nekylauncher.skins.SkinLibrary(dir).all();
+        eq(again.size(), 2);
+        eq(again.get(1).name, "Neko");
+        check(again.get(1).slim, "slim kept");
+        eq(again.get(1).capeId, "cape-1");
+        eq(again.get(0).capeId, "");
+        lib.remove(p);
+        eq(new com.nekyoh.nekylauncher.skins.SkinLibrary(dir).all().size(), 1);
+        check(!Files.exists(p.file(dir)), "png removed");
+        for (byte[] bad : new byte[][]{png(128, 128), png(64, 48), "not a png".getBytes(StandardCharsets.UTF_8)}) {
+            boolean threw = false;
+            try { lib.add("x", bad, false, ""); } catch (java.io.IOException e) { threw = true; }
+            check(threw, "invalid skin rejected");
+        }
+    }
+
+    record Resp(int status, String type, byte[] body) {
+        static Resp json(String s) { return new Resp(200, "application/json", s.getBytes(StandardCharsets.UTF_8)); }
+    }
+
+    interface Route { Resp handle(String method, String uri, com.sun.net.httpserver.Headers headers, byte[] body) throws Exception; }
+
+    /** Minimal local HTTP server for API tests. Returns base URL "http://127.0.0.1:port". */
+    static com.sun.net.httpserver.HttpServer serve(Route r) throws Exception {
+        var srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        srv.createContext("/", ex -> {
+            try {
+                byte[] body = ex.getRequestBody().readAllBytes();
+                Resp res = r.handle(ex.getRequestMethod(), ex.getRequestURI().toString(), ex.getRequestHeaders(), body);
+                if (res == null) res = new Resp(404, "text/plain", "nope".getBytes(StandardCharsets.UTF_8));
+                ex.getResponseHeaders().add("Content-Type", res.type());
+                ex.sendResponseHeaders(res.status(), res.body().length == 0 ? -1 : res.body().length);
+                if (res.body().length > 0) ex.getResponseBody().write(res.body());
+            } catch (Throwable t) {
+                byte[] b = String.valueOf(t).getBytes(StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(500, b.length);
+                ex.getResponseBody().write(b);
+            } finally {
+                ex.close();
+            }
+        });
+        srv.start();
+        return srv;
+    }
+
+    static String base(com.sun.net.httpserver.HttpServer s) { return "http://127.0.0.1:" + s.getAddress().getPort(); }
+
+    static void skinApi() throws Exception {
+        String[] state = {"CLASSIC", "c1"};
+        byte[] skinPng = png(64, 64);
+        var srv = serve((m, uri, h, body) -> {
+            if (!"Bearer tok".equals(h.getFirst("Authorization"))) return new Resp(401, "application/json", new byte[0]);
+            String profile = "{\"id\":\"abc\",\"name\":\"Neko\",\"skins\":[{\"id\":\"s\",\"state\":\"ACTIVE\",\"url\":\"http://t/skin\",\"variant\":\"" + state[0] + "\"}],"
+                    + "\"capes\":[{\"id\":\"c1\",\"state\":\"" + ("c1".equals(state[1]) ? "ACTIVE" : "INACTIVE") + "\",\"url\":\"http://t/c1\",\"alias\":\"Migrator\"},"
+                    + "{\"id\":\"c2\",\"state\":\"" + ("c2".equals(state[1]) ? "ACTIVE" : "INACTIVE") + "\",\"url\":\"http://t/c2\",\"alias\":\"Vanilla\"}]}";
+            switch (m + " " + uri) {
+                case "GET /minecraft/profile" -> { return Resp.json(profile); }
+                case "POST /minecraft/profile/skins" -> {
+                    String type = h.getFirst("Content-Type");
+                    check(type.startsWith("multipart/form-data; boundary="), type);
+                    String text = new String(body, StandardCharsets.ISO_8859_1);
+                    check(text.contains("name=\"variant\"\r\n\r\nslim\r\n"), "variant part");
+                    check(text.contains("name=\"file\"; filename=\"skin.png\"\r\nContent-Type: image/png\r\n\r\n"), "file part");
+                    check(text.contains(new String(skinPng, StandardCharsets.ISO_8859_1)), "png bytes intact");
+                    check(text.endsWith("--\r\n"), "closing boundary");
+                    state[0] = "SLIM";
+                    return Resp.json(profile.replace("CLASSIC", "SLIM"));
+                }
+                case "PUT /minecraft/profile/capes/active" -> {
+                    state[1] = JObject.parse(new String(body, StandardCharsets.UTF_8)).str("capeId");
+                    return new Resp(200, "application/json", new byte[0]); // empty body: client re-fetches
+                }
+                case "DELETE /minecraft/profile/capes/active" -> {
+                    state[1] = "";
+                    return new Resp(204, "application/json", new byte[0]);
+                }
+                default -> { return null; }
+            }
+        });
+        try {
+            com.nekyoh.nekylauncher.skins.SkinApi.setProfileUrlForTests(base(srv) + "/minecraft/profile");
+            var p = com.nekyoh.nekylauncher.skins.SkinApi.fetch("tok");
+            eq(p.name(), "Neko");
+            eq(p.capes().size(), 2);
+            eq(p.activeCape().alias(), "Migrator");
+            check(!p.activeSkin().slim(), "classic");
+            p = com.nekyoh.nekylauncher.skins.SkinApi.uploadSkin("tok", skinPng, true);
+            check(p.activeSkin().slim(), "now slim");
+            p = com.nekyoh.nekylauncher.skins.SkinApi.setCape("tok", "c2");
+            eq(p.activeCape().id(), "c2");
+            p = com.nekyoh.nekylauncher.skins.SkinApi.setCape("tok", "");
+            check(p.activeCape() == null, "cape hidden");
+            boolean threw = false;
+            try { com.nekyoh.nekylauncher.skins.SkinApi.fetch("old"); } catch (java.io.IOException e) {
+                threw = true;
+                eq(e.getMessage(), I18n.tr("skins.error.session"));
+            }
+            check(threw, "401 -> session error");
+        } finally {
+            com.nekyoh.nekylauncher.skins.SkinApi.setProfileUrlForTests("https://api.minecraftservices.com/minecraft/profile");
+            srv.stop(0);
+        }
+    }
+
+    // ------------------------------------------------------------------ curseforge
+
+    static void cfFingerprint() {
+        // reference values from Austin Appleby's MurmurHash2 (C), seed 1, whitespace stripped
+        String[] in = {"", "a", "ab", "abc", "abcd", "hello world\n\tNekyLauncher test 12345"};
+        long[] want = {1540447798L, 626045324L, 1692487918L, 1621425345L, 3376380438L, 2185227716L};
+        for (int i = 0; i < in.length; i++) {
+            eq(com.nekyoh.nekylauncher.curseforge.CurseForge.fingerprint(in[i].getBytes(StandardCharsets.UTF_8)), want[i]);
+        }
+    }
+
+    static com.nekyoh.nekylauncher.curseforge.CurseForge.FileInfo cfFile(List<String> versions) {
+        return new com.nekyoh.nekylauncher.curseforge.CurseForge.FileInfo(1, 1, "", "a.jar", "u", null, 0, versions, 1, List.of());
+    }
+
+    static void cfLoaders() {
+        check(com.nekyoh.nekylauncher.curseforge.CurseForge.matchesLoader(cfFile(List.of("1.20.1", "Fabric")), LoaderType.QUILT, "1.20.1"), "fabric on quilt");
+        check(!com.nekyoh.nekylauncher.curseforge.CurseForge.matchesLoader(cfFile(List.of("1.20.1", "Forge")), LoaderType.QUILT, "1.20.1"), "forge not on quilt");
+        check(com.nekyoh.nekylauncher.curseforge.CurseForge.matchesLoader(cfFile(List.of("1.20.1", "Forge")), LoaderType.NEOFORGE, "1.20.1"), "forge on neoforge 1.20.1");
+        check(!com.nekyoh.nekylauncher.curseforge.CurseForge.matchesLoader(cfFile(List.of("1.21.1", "Forge")), LoaderType.NEOFORGE, "1.21.1"), "forge not on neoforge 1.21");
+        check(com.nekyoh.nekylauncher.curseforge.CurseForge.matchesLoader(cfFile(List.of("1.12.2")), LoaderType.FORGE, "1.12.2"), "untagged old file");
+        eq(com.nekyoh.nekylauncher.modrinth.Modrinth.loaderFilter(com.nekyoh.nekylauncher.modrinth.Modrinth.ProjectType.MOD, LoaderType.NEOFORGE, "1.20.1"), List.of("neoforge", "forge"));
+        eq(com.nekyoh.nekylauncher.modrinth.Modrinth.loaderFilter(com.nekyoh.nekylauncher.modrinth.Modrinth.ProjectType.MOD, LoaderType.NEOFORGE, "1.21.1"), List.of("neoforge"));
+    }
+
+    static String cfFileJson(long id, long modId, String name, String url, byte[] data, int release, String deps, String... versions) {
+        StringBuilder gv = new StringBuilder();
+        for (String v : versions) gv.append(gv.length() == 0 ? "" : ",").append('"').append(v).append('"');
+        return "{\"id\":" + id + ",\"modId\":" + modId + ",\"displayName\":\"" + name + "\",\"fileName\":\"" + name + "\",\"releaseType\":" + release
+                + ",\"downloadUrl\":" + (url == null ? "null" : "\"" + url + "\"") + ",\"fileLength\":" + data.length
+                + ",\"hashes\":[{\"value\":\"" + Hashes.sha1(data) + "\",\"algo\":1},{\"value\":\"x\",\"algo\":2}]"
+                + ",\"gameVersions\":[" + gv + "],\"dependencies\":[" + deps + "],\"isAvailable\":true}";
+    }
+
+    static void cfInstall() throws Exception {
+        Path mods = Files.createTempDirectory("neky-cf").resolve("mods");
+        Files.createDirectories(mods);
+        byte[] cool = "cool mod jar".getBytes(StandardCharsets.UTF_8), dep = "dependency jar".getBytes(StandardCharsets.UTF_8);
+        byte[] already = "already installed library".getBytes(StandardCharsets.UTF_8);
+        Files.write(mods.resolve("already.jar"), already);
+        long alreadyPrint = com.nekyoh.nekylauncher.curseforge.CurseForge.fingerprint(already);
+        List<String> calls = Collections.synchronizedList(new ArrayList<>());
+        com.sun.net.httpserver.HttpServer[] self = {null};
+        var srv = serve((m, uri, h, body) -> {
+            calls.add(m + " " + uri);
+            String b = base(self[0]);
+            if (uri.startsWith("/dl/")) return new Resp(200, "application/java-archive", uri.equals("/dl/cool.jar") ? cool : dep);
+            check("k".equals(h.getFirst("x-api-key")), "api key header");
+            if (uri.startsWith("/v1/mods/search?")) {
+                check(uri.contains("classId=6") && uri.contains("gameVersion=1.20.1") && uri.contains("modLoaderType=4") && uri.contains("searchFilter=cool"), uri);
+                return Resp.json("{\"data\":[{\"id\":100,\"name\":\"Cool Mod\",\"slug\":\"cool\",\"summary\":\"Very cool\",\"downloadCount\":5,\"classId\":6,"
+                        + "\"authors\":[{\"name\":\"neko\"}],\"logo\":{\"thumbnailUrl\":\"http://x/i.png\"},\"links\":{\"websiteUrl\":\"https://www.curseforge.com/minecraft/mc-mods/cool\"},"
+                        + "\"categories\":[{\"name\":\"Tech\"}]}],\"pagination\":{\"index\":0,\"pageSize\":20,\"resultCount\":1,\"totalCount\":1}}");
+            }
+            if (uri.startsWith("/v1/mods/100/files?")) {
+                return Resp.json("{\"data\":[" + cfFileJson(10, 100, "cool.jar", b + "/dl/cool.jar", cool, 1,
+                        "{\"modId\":200,\"relationType\":3},{\"modId\":300,\"relationType\":3},{\"modId\":500,\"relationType\":3},{\"modId\":400,\"relationType\":2}", "1.20.1", "Fabric")
+                        + "," + cfFileJson(11, 100, "cool-beta.jar", b + "/dl/cool.jar", cool, 2, "", "1.20.1", "Fabric") + "]}");
+            }
+            if (uri.startsWith("/v1/mods/200/files?")) return Resp.json("{\"data\":[" + cfFileJson(20, 200, "dep.jar", b + "/dl/dep.jar", dep, 1, "", "1.20.1", "Fabric") + "]}");
+            if (uri.startsWith("/v1/mods/300/files?")) return Resp.json("{\"data\":[" + cfFileJson(30, 300, "blocked.jar", null, dep, 1, "", "1.20.1", "Fabric") + "]}");
+            if (uri.equals("/v1/mods/300")) return Resp.json("{\"data\":{\"id\":300,\"name\":\"Blocked Lib\",\"classId\":6,\"links\":{\"websiteUrl\":\"https://cf.test/blocked\"}}}");
+            if (uri.startsWith("/v1/mods/600/files?")) return Resp.json("{\"data\":[" + cfFileJson(60, 600, "solo.jar", null, dep, 1, "", "1.20.1", "Fabric") + "]}");
+            if (uri.equals("/v1/fingerprints/432")) {
+                check(new String(body, StandardCharsets.UTF_8).contains(String.valueOf(alreadyPrint)), "fingerprint sent");
+                return Resp.json("{\"data\":{\"exactMatches\":[{\"id\":500,\"file\":{\"modId\":500,\"fileFingerprint\":" + alreadyPrint + "}}]}}");
+            }
+            return null;
+        });
+        self[0] = srv;
+        try {
+            com.nekyoh.nekylauncher.curseforge.CurseForge.setForTests("k", base(srv) + "/v1");
+            check(com.nekyoh.nekylauncher.curseforge.CurseForge.available(), "key set");
+            var res = com.nekyoh.nekylauncher.curseforge.CurseForge.search("cool", com.nekyoh.nekylauncher.curseforge.CurseForge.ClassType.MOD, "1.20.1", LoaderType.FABRIC, 0, 20);
+            eq(res.total(), 1);
+            var hit = res.hits().get(0);
+            eq(hit.title(), "Cool Mod");
+            eq(hit.author(), "neko");
+            eq(hit.categories(), List.of("Tech"));
+            var files = com.nekyoh.nekylauncher.curseforge.CurseForge.projectFiles(100, com.nekyoh.nekylauncher.curseforge.CurseForge.ClassType.MOD, "1.20.1", LoaderType.FABRIC);
+            eq(files.get(0).id(), 11L); // newest first
+            var best = com.nekyoh.nekylauncher.curseforge.CurseForge.best(files);
+            eq(best.id(), 10L); // release preferred over beta
+            eq(best.requiredMods(), List.of(200L, 300L, 500L));
+            var r = com.nekyoh.nekylauncher.curseforge.CurseForge.install(hit, best, mods, com.nekyoh.nekylauncher.curseforge.CurseForge.ClassType.MOD,
+                    LoaderType.FABRIC, "1.20.1", true, Progress.NONE, null);
+            eq(r.written().size(), 2);
+            check(Files.exists(mods.resolve("cool.jar")) && Files.exists(mods.resolve("dep.jar")), "mod + dependency downloaded");
+            check(Files.exists(mods.resolve("already.jar")), "present dependency untouched");
+            eq(r.blocked().size(), 1);
+            check(r.blocked().get(0).name().contains("Blocked Lib"), r.blocked().get(0).name());
+            eq(r.blocked().get(0).pageUrl(), "https://cf.test/blocked");
+            check(calls.stream().noneMatch(c -> c.contains("/mods/500/") || c.contains("/mods/400/")), "skipped present + optional deps: " + calls);
+            boolean threw = false;
+            try {
+                var solo = com.nekyoh.nekylauncher.curseforge.CurseForge.best(com.nekyoh.nekylauncher.curseforge.CurseForge.projectFiles(600,
+                        com.nekyoh.nekylauncher.curseforge.CurseForge.ClassType.MOD, "1.20.1", LoaderType.FABRIC));
+                com.nekyoh.nekylauncher.curseforge.CurseForge.install(hit, solo, mods, com.nekyoh.nekylauncher.curseforge.CurseForge.ClassType.MOD,
+                        LoaderType.FABRIC, "1.20.1", true, Progress.NONE, null);
+            } catch (com.nekyoh.nekylauncher.curseforge.CurseForge.DistributionBlockedException e) {
+                threw = true;
+            }
+            check(threw, "third-party download disabled -> not downloaded");
+        } finally {
+            com.nekyoh.nekylauncher.curseforge.CurseForge.setForTests(null, null);
+            srv.stop(0);
+        }
+    }
+
+    static void cfModpack() throws Exception {
+        Path root = Files.createTempDirectory("neky-cfpack");
+        Dirs d = new Dirs(root);
+        d.ensure();
+        byte[] cool = "cool mod jar".getBytes(StandardCharsets.UTF_8), pack = "resource pack zip".getBytes(StandardCharsets.UTF_8);
+        List<String> calls = Collections.synchronizedList(new ArrayList<>());
+        com.sun.net.httpserver.HttpServer[] self = {null};
+        var srv = serve((m, uri, h, body) -> {
+            calls.add(m + " " + uri + " " + new String(body, StandardCharsets.UTF_8));
+            String b = base(self[0]);
+            if (uri.equals("/dl/cool.jar")) return new Resp(200, "application/java-archive", cool);
+            if (uri.equals("/dl/pack.zip")) return new Resp(200, "application/zip", pack);
+            if (uri.equals("/v1/mods/files")) {
+                return Resp.json("{\"data\":[" + cfFileJson(10, 100, "cool.jar", b + "/dl/cool.jar", cool, 1, "", "1.20.1", "Fabric") + ","
+                        + cfFileJson(70, 700, "pack.zip", b + "/dl/pack.zip", pack, 1, "", "1.20.1") + ","
+                        + cfFileJson(30, 300, "blocked.jar", null, cool, 1, "", "1.20.1") + "]}");
+            }
+            if (uri.equals("/v1/mods")) {
+                return Resp.json("{\"data\":[{\"id\":100,\"name\":\"Cool Mod\",\"classId\":6},{\"id\":700,\"name\":\"Pretty Pack\",\"classId\":12},"
+                        + "{\"id\":300,\"name\":\"Blocked Lib\",\"classId\":6,\"links\":{\"websiteUrl\":\"https://cf.test/blocked\"}}]}");
+            }
+            return null;
+        });
+        self[0] = srv;
+        try {
+            com.nekyoh.nekylauncher.curseforge.CurseForge.setForTests("k", base(srv) + "/v1");
+            Path zip = root.resolve("cf.zip");
+            writeZip(zip, Map.of(
+                    "manifest.json", "{\"minecraft\":{\"version\":\"1.20.1\",\"modLoaders\":[{\"id\":\"fabric-0.15.11\",\"primary\":true}]},"
+                            + "\"manifestType\":\"minecraftModpack\",\"name\":\"CF Pack\",\"overrides\":\"overrides\",\"files\":["
+                            + "{\"projectID\":100,\"fileID\":10,\"required\":true},{\"projectID\":700,\"fileID\":70,\"required\":true},"
+                            + "{\"projectID\":300,\"fileID\":30,\"required\":true},{\"projectID\":800,\"fileID\":80,\"required\":false}]}",
+                    "overrides/config/a.txt", "x"));
+            var res = InstanceArchive.importArchive(zip, new InstanceManager(d), Progress.NONE, null);
+            Instance i = res.instance();
+            eq(i.name, "CF Pack");
+            eq(i.loader, LoaderType.FABRIC);
+            eq(i.loaderVersion, "0.15.11");
+            check(Files.exists(i.modsDir().resolve("cool.jar")), "mod downloaded");
+            check(Files.exists(i.gameDir().resolve("resourcepacks/pack.zip")), "resource pack routed by class");
+            check(Files.exists(i.gameDir().resolve("config/a.txt")), "overrides");
+            eq(res.blocked().size(), 1);
+            eq(res.blocked().get(0).pageUrl(), "https://cf.test/blocked");
+            check(calls.stream().noneMatch(c -> c.contains("80")), "optional file skipped: " + calls);
+        } finally {
+            com.nekyoh.nekylauncher.curseforge.CurseForge.setForTests(null, null);
+            srv.stop(0);
+        }
     }
 
     static void jar(Path classes, String entry, Path out) throws Exception {

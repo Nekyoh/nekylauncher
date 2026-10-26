@@ -36,6 +36,7 @@ final class Sidebar extends JPanel {
         nav.setBorder(BorderFactory.createEmptyBorder(10, 14, 0, 14));
         add(nav, MainWindow.Page.HOME, Icons.Name.HOME, I18n.tr("nav.home"));
         add(nav, MainWindow.Page.INSTANCES, Icons.Name.GRID, I18n.tr("nav.instances"));
+        add(nav, MainWindow.Page.SKINS, Icons.Name.SHIRT, I18n.tr("nav.skins"));
         add(nav, MainWindow.Page.ACCOUNTS, Icons.Name.USER, I18n.tr("nav.accounts"));
         add(nav, MainWindow.Page.SETTINGS, Icons.Name.SETTINGS, I18n.tr("nav.settings"));
         top.add(nav, BorderLayout.CENTER);
@@ -45,7 +46,10 @@ final class Sidebar extends JPanel {
         bottom.setBorder(BorderFactory.createEmptyBorder(0, 14, 14, 14));
         runningChip = new RunningChip();
         accountChip = new AccountChip();
-        bottom.add(runningChip, BorderLayout.NORTH);
+        JPanel above = Ui.transparent(new BorderLayout(0, 8));
+        above.add(links(), BorderLayout.NORTH);
+        above.add(runningChip, BorderLayout.SOUTH);
+        bottom.add(above, BorderLayout.NORTH);
         bottom.add(accountChip, BorderLayout.SOUTH);
         add(bottom, BorderLayout.SOUTH);
         setActive(MainWindow.Page.HOME);
@@ -56,6 +60,74 @@ final class Sidebar extends JPanel {
         NavItem it = new NavItem(page, icon, text);
         items.add(it);
         nav.add(it);
+    }
+
+    /** Official channels and sites, right above the player card. */
+    private JComponent links() {
+        JPanel p = Ui.transparent(new BorderLayout(0, 6));
+        JLabel head = Ui.caps(I18n.tr("sidebar.links"));
+        head.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+        p.add(head, BorderLayout.NORTH);
+        JPanel yt = Ui.transparent(new GridLayout(1, 2, 6, 0));
+        yt.add(new LinkItem(Icons.Name.VIDEO, "Nekyoh", com.nekyoh.nekylauncher.AppInfo.YOUTUBE_NEKYOH, new Color(0xF87171), true));
+        yt.add(new LinkItem(Icons.Name.VIDEO, "Tekyoh", com.nekyoh.nekylauncher.AppInfo.YOUTUBE_TEKYOH, new Color(0xF87171), true));
+        JPanel sites = Ui.transparent(new GridLayout(0, 1, 0, 2));
+        sites.add(new LinkItem(Icons.Name.GLOBE, "nekyoh.tech", com.nekyoh.nekylauncher.AppInfo.SITE, Theme.CYAN, false));
+        sites.add(new LinkItem(Icons.Name.GLOBE, I18n.tr("sidebar.launcherSite"), com.nekyoh.nekylauncher.AppInfo.LAUNCHER_SITE, Theme.CYAN, false));
+        sites.add(new LinkItem(Icons.Name.CUBE, I18n.tr("sidebar.epiccraft"), com.nekyoh.nekylauncher.AppInfo.EPICCRAFT_SITE, Theme.GREEN, false));
+        JPanel body = Ui.transparent(new BorderLayout(0, 6));
+        body.add(yt, BorderLayout.NORTH);
+        body.add(sites, BorderLayout.CENTER);
+        p.add(body, BorderLayout.CENTER);
+        return p;
+    }
+
+    /** Small clickable link: pill (YouTube channels) or compact row (sites). */
+    private static final class LinkItem extends JComponent {
+        private final Icons.Name icon;
+        private final String text;
+        private final Color accent;
+        private final boolean pill;
+        private boolean hover;
+
+        LinkItem(Icons.Name icon, String text, String url, Color accent, boolean pill) {
+            this.icon = icon;
+            this.text = text;
+            this.accent = accent;
+            this.pill = pill;
+            setPreferredSize(new Dimension(100, pill ? 34 : 28));
+            setToolTipText(url);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseEntered(MouseEvent e) { hover = true; repaint(); }
+                @Override public void mouseExited(MouseEvent e) { hover = false; repaint(); }
+                @Override public void mousePressed(MouseEvent e) { com.nekyoh.nekylauncher.util.OS.openUrl(url); }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = Theme.hq(g.create());
+            int w = getWidth(), h = getHeight();
+            if (pill) {
+                g2.setColor(hover ? Theme.alpha(accent, 0.16) : Theme.SURFACE);
+                g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 16, 16));
+                g2.setColor(hover ? Theme.alpha(accent, 0.45) : Theme.BORDER);
+                g2.draw(new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 16, 16));
+            } else if (hover) {
+                g2.setColor(Theme.SURFACE_2);
+                g2.fill(new RoundRectangle2D.Float(0, 0, w, h, 14, 14));
+            }
+            int is = 15;
+            Icons.get(icon, is, accent).paintIcon(this, g2, pill ? 10 : 8, (h - is) / 2);
+            g2.setFont(Theme.font(12.5f, Theme.Weight.MEDIUM));
+            g2.setColor(hover ? Theme.TEXT : Theme.TEXT_2);
+            FontMetrics fm = g2.getFontMetrics();
+            int tx = (pill ? 10 : 8) + is + 8;
+            g2.drawString(Ui.ellipsize(text, fm, w - tx - 18), tx, (h - fm.getHeight()) / 2 + fm.getAscent());
+            if (hover) Icons.get(Icons.Name.EXTERNAL, 12, Theme.TEXT_3).paintIcon(this, g2, w - 18, (h - 12) / 2);
+            g2.dispose();
+        }
     }
 
     void setActive(MainWindow.Page p) {
