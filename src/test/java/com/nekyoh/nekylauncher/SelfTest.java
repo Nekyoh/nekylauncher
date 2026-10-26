@@ -944,7 +944,8 @@ public final class SelfTest {
             check(!com.nekyoh.nekylauncher.update.Updater.isNewer("1.0.0", "1.0.0"), "same");
             check(!com.nekyoh.nekylauncher.update.Updater.isNewer("nightly", "1.0.0"), "non-version tag ignored");
             var D = com.nekyoh.nekylauncher.update.Updater.Dist.class;
-            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_INSTALLER")).name(), "NekyLauncher-1.2.0.exe");
+            // installed copies update by swapping files too, so they use the portable zip (no installer, any drive)
+            eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_INSTALLER")).name(), "NekyLauncher-windows-x64.zip");
             eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "WINDOWS_PORTABLE")).name(), "NekyLauncher-windows-x64.zip");
             eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "LINUX_DEB")).name(), "nekylauncher_1.2.0_amd64.deb");
             eq(com.nekyoh.nekylauncher.update.Updater.assetFor(r, Enum.valueOf(D, "LINUX_PORTABLE")).name(), "NekyLauncher-linux-x64.tar.gz");
@@ -985,7 +986,7 @@ public final class SelfTest {
         eq(com.nekyoh.nekylauncher.update.Updater.findRoot(staging, "bin/NekyLauncher"), src);
         Process waiting = new ProcessBuilder("sleep", "1").start(); // stands in for the running launcher
         Path script = root.resolve("update.sh");
-        Files.writeString(script, com.nekyoh.nekylauncher.update.Updater.linuxPortableScript(waiting.pid(), src, app));
+        Files.writeString(script, com.nekyoh.nekylauncher.update.Updater.linuxPortableScript(waiting.pid(), src, app, false));
         Process p = new ProcessBuilder("sh", script.toString()).redirectErrorStream(true).start();
         check(p.waitFor(30, java.util.concurrent.TimeUnit.SECONDS), "script finished");
         check(!waiting.isAlive(), "waited for the launcher to exit");
@@ -995,8 +996,17 @@ public final class SelfTest {
         eq(Files.readString(app.resolve("data/instances/Survival/world.dat")), "precious");
         check(Files.exists(app.resolve("portable.txt")), "portable marker kept");
         check(Files.exists(app.resolve("started.txt")), "new version started");
-        String ps = com.nekyoh.nekylauncher.update.Updater.windowsPortableScript(42, Path.of("C:/x/it's"), Path.of("C:/apps/Neky"));
-        check(ps.contains("'C:/x/it''s'") || ps.contains("it''s"), "powershell quoting");
+        String swap = com.nekyoh.nekylauncher.update.Updater.windowsSwapScript(Path.of("C:/x/it's"), Path.of("D:/Jogos/Neky"), true);
+        check(swap.contains("it''s"), "powershell quoting");
+        check(swap.contains("neky.dist=windows-installer"), "installed copy keeps its marker");
+        check(!swap.contains("data") && !swap.contains("portable.txt"), "swap never touches data");
+        String user = com.nekyoh.nekylauncher.update.Updater.windowsUpdateScript(42, Path.of("C:/t/swap.ps1"), Path.of("D:/Jogos/Neky"), false, "1.2.0");
+        check(!user.contains("RunAs") && user.contains("& $swap"), "writable folder: no admin prompt");
+        check(user.contains("DisplayVersion") && user.contains("'1.2.0'"), "Apps list version refreshed");
+        String admin = com.nekyoh.nekylauncher.update.Updater.windowsUpdateScript(42, Path.of("C:/t/swap.ps1"), Path.of("C:/Program Files/Neky"), true, null);
+        check(admin.contains("-Verb RunAs") && !admin.contains("DisplayVersion"), "protected folder: elevated swap");
+        check(admin.indexOf("RunAs") < admin.indexOf("NekyLauncher.exe"), "launcher reopened after the swap (not elevated)");
+        check(com.nekyoh.nekylauncher.update.Updater.linuxPortableScript(1, src, app, true).contains("pkexec sh -c"), "linux protected folder");
     }
 
     static void jar(Path classes, String entry, Path out) throws Exception {

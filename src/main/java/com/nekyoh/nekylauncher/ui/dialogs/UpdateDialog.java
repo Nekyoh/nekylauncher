@@ -66,8 +66,8 @@ public final class UpdateDialog {
         sp.setPreferredSize(new Dimension(520, Math.min(260, text.getPreferredSize().height + 20)));
         body.with(sp);
         if (!self) body.with(Ui.paragraph(I18n.tr(dist == Updater.Dist.DEV ? "update.manualDev" : "update.manual"), Theme.TEXT_3, 12));
-        else if (dist == Updater.Dist.WINDOWS_INSTALLER) body.with(Ui.paragraph(I18n.tr("update.installerNote"), Theme.TEXT_3, 12));
         else if (dist == Updater.Dist.LINUX_DEB) body.with(Ui.paragraph(I18n.tr("update.debNote"), Theme.TEXT_3, 12));
+        else if (Updater.needsAdmin(dist)) body.with(Ui.paragraph(I18n.tr("update.installerNote"), Theme.TEXT_3, 12));
 
         Modal m = Modal.open(I18n.tr("update.title", r.version()), body, 600);
         NButton skip = new NButton(I18n.tr("update.skip"), NButton.Variant.GHOST).onClick(() -> {

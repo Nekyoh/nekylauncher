@@ -94,8 +94,8 @@ public final class Updater {
         for (Asset a : r.assets()) {
             String n = a.name().toLowerCase(Locale.ROOT);
             boolean ok = switch (d) {
-                case WINDOWS_INSTALLER -> n.endsWith(".exe") || n.endsWith(".msi");
-                case WINDOWS_PORTABLE -> n.endsWith("windows-x64.zip");
+                // installed copies are updated by swapping files too (no installer UI, any drive)
+                case WINDOWS_INSTALLER, WINDOWS_PORTABLE -> n.endsWith("windows-x64.zip");
                 case LINUX_DEB -> n.endsWith("_amd64.deb") || n.endsWith(".deb");
                 case LINUX_PORTABLE -> n.endsWith("linux-x64.tar.gz");
                 case DEV -> false;
@@ -106,25 +106,45 @@ public final class Updater {
     }
 
     /**
-     * Whether this copy can update itself: a packaged build, a matching file in the release and,
-     * for portable copies, a writable folder whose data would not be touched by the swap.
+     * Whether this copy can update itself: a packaged build, a matching file in the release and a
+     * data folder that the file swap would not touch. Where the launcher is installed (C:, D:, a
+     * protected folder…) doesn't matter: protected folders just ask for administrator rights.
      */
     public static boolean canSelfUpdate(Release r, Path dataRoot) {
         Dist d = dist();
         if (d == Dist.DEV || assetFor(r, d) == null) return false;
-        if (d == Dist.WINDOWS_PORTABLE || d == Dist.LINUX_PORTABLE) {
-            Path app = Dirs.appLocation();
-            if (app == null || !Files.isWritable(app)) return false;
-            for (String part : replacedParts(d)) {
-                if (dataRoot != null && dataRoot.toAbsolutePath().normalize().startsWith(app.resolve(part).toAbsolutePath().normalize())) return false;
-            }
+        if (d == Dist.LINUX_DEB) return true;
+        Path app = Dirs.appLocation();
+        if (app == null) return false;
+        for (String part : replacedParts(d)) {
+            if (dataRoot != null && dataRoot.toAbsolutePath().normalize().startsWith(app.resolve(part).toAbsolutePath().normalize())) return false;
         }
         return true;
     }
 
-    /** Folders/files of a portable copy that are replaced; everything else (data/, portable.txt) is kept. */
+    /** Folders of the program that are replaced; everything else (data/, portable.txt) is kept. */
     static List<String> replacedParts(Dist d) {
-        return d == Dist.WINDOWS_PORTABLE ? List.of("app", "runtime") : List.of("bin", "lib");
+        return d.windows() ? List.of("app", "runtime") : List.of("bin", "lib");
+    }
+
+    /**
+     * True when the program folder can't be written by this user (e.g. Program Files, /opt, a folder
+     * created by another account): the swap then runs with administrator rights.
+     */
+    public static boolean needsAdmin(Dist d) {
+        if (d == Dist.LINUX_DEB) return true;
+        Path app = Dirs.appLocation();
+        if (app == null) return true;
+        for (Path dir : List.of(app, app.resolve(replacedParts(d).get(1)))) {
+            // Files.isWritable is unreliable with Windows ACLs: actually try
+            try {
+                Path probe = Files.createTempFile(dir, ".neky-write", ".tmp");
+                Files.deleteIfExists(probe);
+            } catch (IOException | RuntimeException e) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ download
@@ -164,15 +184,17 @@ public final class Updater {
         String exe = System.getProperty("jpackage.app-path", "");
         Files.createDirectories(workDir);
         Path log = workDir.resolve("update.log");
+        boolean admin = needsAdmin(d);
         switch (d) {
-            case WINDOWS_INSTALLER -> runPowerShell(workDir, log, windowsInstallerScript(pid, file, exe));
-            case WINDOWS_PORTABLE -> {
+            case WINDOWS_INSTALLER, WINDOWS_PORTABLE -> {
                 Path staging = cleanDir(workDir.resolve("staging"));
                 try (InputStream in = Files.newInputStream(file)) {
                     FileUtil.unzip(in, staging, null, null);
                 }
                 Path src = findRoot(staging, "NekyLauncher.exe");
-                runPowerShell(workDir, log, windowsPortableScript(pid, src, app));
+                writePowerShell(workDir.resolve("swap.ps1"), windowsSwapScript(src, app, d == Dist.WINDOWS_INSTALLER));
+                runPowerShell(workDir, log, windowsUpdateScript(pid, workDir.resolve("swap.ps1"), app, admin,
+                        d == Dist.WINDOWS_INSTALLER ? versionOf(file) : null));
             }
             case LINUX_DEB -> runShell(workDir, log, linuxDebScript(pid, file, exe));
             case LINUX_PORTABLE -> {
@@ -181,10 +203,27 @@ public final class Updater {
                     Tar.extractTarGz(in, staging, 0);
                 }
                 Path src = findRoot(staging, "bin/NekyLauncher");
-                runShell(workDir, log, linuxPortableScript(pid, src, app));
+                runShell(workDir, log, linuxPortableScript(pid, src, app, admin));
             }
             case DEV -> throw new IOException("Not a packaged build");
         }
+    }
+
+    /** Version of the downloaded update, from the build.properties / manifest inside its jar ("" if unknown). */
+    private static String versionOf(Path zip) {
+        try (var zf = new java.util.zip.ZipFile(zip.toFile())) {
+            var en = zf.entries();
+            while (en.hasMoreElements()) {
+                var e = en.nextElement();
+                if (!e.getName().replace('\\', '/').endsWith("app/NekyLauncher.jar")) continue;
+                try (var jar = new java.util.jar.JarInputStream(zf.getInputStream(e))) {
+                    var mf = jar.getManifest();
+                    String v = mf == null ? null : mf.getMainAttributes().getValue("Implementation-Version");
+                    return v == null ? "" : v;
+                }
+            }
+        } catch (IOException ignored) { }
+        return "";
     }
 
     private static Path cleanDir(Path p) throws IOException {
@@ -208,32 +247,61 @@ public final class Updater {
 
     static String sh(Object s) { return "'" + String.valueOf(s).replace("'", "'\\''") + "'"; }
 
-    public static String windowsInstallerScript(long pid, Path installer, String exe) {
-        return String.join("\r\n",
+    /**
+     * Replaces app/ and runtime/ (and the .exe) with the new ones. Data, portable.txt and anything
+     * else in the folder stay. An installed copy keeps its "installed" marker so it stays recognised.
+     */
+    public static String windowsSwapScript(Path src, Path app, boolean installedCopy) {
+        List<String> l = new ArrayList<>(List.of(
                 "$ErrorActionPreference = 'Continue'",
-                "Wait-Process -Id " + pid + " -Timeout 120 -ErrorAction SilentlyContinue",
-                "Start-Process -FilePath " + ps(installer) + " -Wait",
-                "$exe = " + ps(exe),
-                "if ($exe -and (Test-Path $exe)) { Start-Process -FilePath $exe }",
-                "");
-    }
-
-    public static String windowsPortableScript(long pid, Path src, Path app) {
-        return String.join("\r\n",
-                "$ErrorActionPreference = 'Continue'",
-                "Wait-Process -Id " + pid + " -Timeout 120 -ErrorAction SilentlyContinue",
                 "$app = " + ps(app),
                 "$src = " + ps(src),
                 "foreach ($n in 'app', 'runtime') {",
                 "  $p = Join-Path $app $n",
-                "  for ($i = 0; $i -lt 20 -and (Test-Path $p); $i++) {",
+                "  for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $p); $i++) {",
                 "    Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue",
-                "    if (Test-Path $p) { Start-Sleep -Milliseconds 500 }",
+                "    if (Test-Path -LiteralPath $p) { Start-Sleep -Milliseconds 500 }",
                 "  }",
                 "}",
-                "Copy-Item -Path (Join-Path $src '*') -Destination $app -Recurse -Force",
-                "Start-Process -FilePath (Join-Path $app 'NekyLauncher.exe')",
-                "");
+                "Get-ChildItem -LiteralPath $src -Force | Copy-Item -Destination $app -Recurse -Force"));
+        if (installedCopy) {
+            l.add("$cfg = Join-Path $app 'app\\NekyLauncher.cfg'");
+            // rewrite without a BOM: the jpackage launcher reads this file as plain text
+            l.add("if (Test-Path -LiteralPath $cfg) { $t = [IO.File]::ReadAllText($cfg).Replace('neky.dist=windows-portable', 'neky.dist=windows-installer'); [IO.File]::WriteAllText($cfg, $t, (New-Object Text.UTF8Encoding $false)) }");
+        }
+        l.add("");
+        return String.join("\r\n", l);
+    }
+
+    /**
+     * Runs as the user: waits for the launcher to exit, runs the swap (elevated through UAC when the
+     * folder is protected), refreshes the version shown in Windows "Apps" and reopens the launcher
+     * (never elevated). If the UAC prompt is refused nothing changes and the old version reopens.
+     */
+    public static String windowsUpdateScript(long pid, Path swap, Path app, boolean admin, String newVersion) {
+        List<String> l = new ArrayList<>(List.of(
+                "$ErrorActionPreference = 'Continue'",
+                "Wait-Process -Id " + pid + " -Timeout 120 -ErrorAction SilentlyContinue",
+                "Start-Sleep -Milliseconds 300",
+                "$swap = " + ps(swap),
+                "$ok = $true"));
+        if (admin) {
+            l.add("try {");
+            l.add("  Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -WindowStyle Hidden -ErrorAction Stop -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('\"' + $swap + '\"'))");
+            l.add("} catch { $ok = $false; Write-Output \"Elevation refused: $_\" }");
+        } else {
+            l.add("& $swap");
+        }
+        if (newVersion != null && !newVersion.isBlank()) {
+            l.add("if ($ok) {");
+            l.add("Get-ChildItem 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall', 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall' -ErrorAction SilentlyContinue |");
+            l.add("  Where-Object { (Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue).DisplayName -eq 'NekyLauncher' } |");
+            l.add("  ForEach-Object { Set-ItemProperty -LiteralPath $_.PSPath -Name DisplayVersion -Value " + ps(newVersion) + " -ErrorAction SilentlyContinue }");
+            l.add("}");
+        }
+        l.add("Start-Process -FilePath (Join-Path " + ps(app) + " 'NekyLauncher.exe')");
+        l.add("");
+        return String.join("\r\n", l);
     }
 
     public static String linuxDebScript(long pid, Path deb, String exe) {
@@ -252,22 +320,26 @@ public final class Updater {
                 "");
     }
 
-    public static String linuxPortableScript(long pid, Path src, Path app) {
+    public static String linuxPortableScript(long pid, Path src, Path app, boolean admin) {
+        String swap = "rm -rf \"$1/bin\" \"$1/lib\" && cp -a \"$2/.\" \"$1/\" && chmod +x \"$1/bin/NekyLauncher\"";
         return String.join("\n",
                 "#!/bin/sh",
                 "while kill -0 " + pid + " 2>/dev/null; do sleep 0.5; done",
                 "APP=" + sh(app),
                 "SRC=" + sh(src),
-                "rm -rf \"$APP/bin\" \"$APP/lib\"",
-                "cp -a \"$SRC/.\" \"$APP/\"",
-                "chmod +x \"$APP/bin/NekyLauncher\"",
+                (admin ? "pkexec " : "") + "sh -c " + sh(swap) + " sh \"$APP\" \"$SRC\"",
                 "nohup \"$APP/bin/NekyLauncher\" >/dev/null 2>&1 &",
                 "");
     }
 
+    /** UTF-8 with BOM: Windows PowerShell 5 reads BOM-less scripts as ANSI and breaks accented paths. */
+    private static void writePowerShell(Path f, String script) throws IOException {
+        Files.writeString(f, "\uFEFF" + script, StandardCharsets.UTF_8);
+    }
+
     private static void runPowerShell(Path workDir, Path log, String script) throws IOException {
         Path f = workDir.resolve("update.ps1");
-        Files.writeString(f, script, StandardCharsets.UTF_8);
+        writePowerShell(f, script);
         new ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", f.toString())
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
     }
