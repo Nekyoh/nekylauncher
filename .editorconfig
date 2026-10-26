@@ -1,0 +1,14 @@
+# Editor settings shared by IntelliJ, VS Code, etc.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# Translations are UTF-8 (Java 9+ reads .properties as UTF-8); IntelliJ defaults to ISO-8859-1 otherwise
+[*.properties]
+charset = utf-8
+
+[*.{bat,ps1}]
+end_of_line = crlf

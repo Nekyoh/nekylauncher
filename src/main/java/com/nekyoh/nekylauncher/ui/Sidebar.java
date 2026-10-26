@@ -69,7 +69,7 @@ final class Sidebar extends JPanel {
         head.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
         p.add(head, BorderLayout.NORTH);
         JPanel yt = Ui.transparent(new GridLayout(1, 2, 6, 0));
-        yt.add(new LinkItem(Icons.Name.VIDEO, "Nekyoh", com.nekyoh.nekylauncher.AppInfo.YOUTUBE_NEKYOH, new Color(0xF87171), true));
+        yt.add(new LinkItem(Icons.Name.VIDEO, "Nezoru", com.nekyoh.nekylauncher.AppInfo.YOUTUBE_NEZORU, new Color(0xF87171), true));
         yt.add(new LinkItem(Icons.Name.VIDEO, "Tekyoh", com.nekyoh.nekylauncher.AppInfo.YOUTUBE_TEKYOH, new Color(0xF87171), true));
         JPanel sites = Ui.transparent(new GridLayout(0, 1, 0, 2));
         sites.add(new LinkItem(Icons.Name.GLOBE, "nekyoh.tech", com.nekyoh.nekylauncher.AppInfo.SITE, Theme.CYAN, false));

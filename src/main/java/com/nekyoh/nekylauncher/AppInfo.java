@@ -12,7 +12,7 @@ public final class AppInfo {
     public static final String SITE = "https://nekyoh.tech/";
     public static final String LAUNCHER_SITE = "https://launcher.nekyoh.tech/";
     public static final String EPICCRAFT_SITE = "https://epiccraft.nekyoh.tech/";
-    public static final String YOUTUBE_NEKYOH = "https://www.youtube.com/@Nezoru";
+    public static final String YOUTUBE_NEZORU = "https://www.youtube.com/@Nezoru";
     public static final String YOUTUBE_TEKYOH = "https://www.youtube.com/@Tekyoh01";
 
     /** Modrinth asks for a uniquely identifying user agent: author/project/version. */
@@ -40,7 +40,9 @@ public final class AppInfo {
     }
 
     private static String readVersion() {
-        String v = AppInfo.class.getPackage() != null ? AppInfo.class.getPackage().getImplementationVersion() : null;
-        return v != null ? v : "1.0.0";
+        String v = readBuildProperty("version");
+        if (!v.isBlank()) return v;
+        v = AppInfo.class.getPackage() != null ? AppInfo.class.getPackage().getImplementationVersion() : null;
+        return v != null ? v : "dev";
     }
 }

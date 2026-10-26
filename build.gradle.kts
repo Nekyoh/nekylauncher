@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.nekyoh"
-version = "1.1.0"
+version = "1.1.1"
 
 repositories {
     mavenCentral()
@@ -35,8 +35,9 @@ val cfApiKey: String = (project.findProperty("cfApiKey") as String?)?.takeIf { i
 tasks.processResources {
     inputs.property("msClientId", msClientId)
     inputs.property("cfApiKey", cfApiKey)
+    inputs.property("version", project.version.toString())
     filesMatching("nekylauncher/build.properties") {
-        expand("msClientId" to msClientId, "cfApiKey" to cfApiKey)
+        expand("msClientId" to msClientId, "cfApiKey" to cfApiKey, "version" to project.version.toString())
     }
 }
 

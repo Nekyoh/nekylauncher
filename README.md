@@ -58,62 +58,11 @@ Ao abrir, o launcher verifica se existe versão nova e mostra um aviso. Em **Atu
 
 Dá para desligar a verificação ou procurar na hora em **Configurações › Atualizações**. Instâncias, mundos, contas e presets de skin nunca são apagados.
 
-## Publicar no GitHub e gerar os executáveis
-
-O repositório já tem um workflow (`.github/workflows/build.yml`) que **compila, testa e gera os executáveis de Windows e Linux sozinho** a cada push. Você não precisa de nada instalado além do Git.
-
-1. Crie um repositório vazio em <https://github.com/new> (ex.: `nekylauncher`, sem README).
-2. Na pasta do projeto:
-   ```bash
-   git init
-   git add .
-   git commit -m "NekyLauncher 1.0.0"
-   git branch -M main
-   git remote add origin https://github.com/SEU_USUARIO/nekylauncher.git
-   git push -u origin main
-   ```
-3. Adicione os *secrets* em **Settings › Secrets and variables › Actions › New repository secret**:
-   - `NEKY_MS_CLIENT_ID` — o client ID do Azure aprovado pela Mojang (login Microsoft);
-   - `NEKY_CF_API_KEY` — a chave da API do CurseForge (veja abaixo). Sem ela o launcher funciona, só a aba CurseForge fica desativada.
-4. Rode de novo o build: aba **Actions › Build › Run workflow** (ou faça qualquer push).
-5. Os arquivos ficam na execução do workflow, em **Artifacts**: `NekyLauncher-Windows` (zip portátil e, se houver WiX, instalador) e `NekyLauncher-Linux` (tar.gz e .deb).
-
-### Lançar uma versão
-
-1. Aumente `version = "..."` no `build.gradle.kts` (ex.: `1.1.0` → `1.2.0`). É esse número que o launcher compara para saber se há atualização.
-2. Faça o commit e o push, baixe os *Artifacts* do build e teste.
-3. Crie a Release com a tag `v<versão>` (ex.: `v1.2.0`) e anexe os 4 arquivos — manualmente em **Releases › Draft a new release**, ou automaticamente se o workflow tiver o passo de release. Só quando a Release é **publicada** (não rascunho) os launchers instalados recebem o aviso de atualização.
-
-### Gerar no seu PC (opcional)
-
-Precisa do **JDK 21** ([Eclipse Temurin](https://adoptium.net/)). Defina as variáveis de ambiente `NEKY_MS_CLIENT_ID` e `NEKY_CF_API_KEY` (ou `msClientId=` / `cfApiKey=` em `gradle.properties`, sem commitar) e rode:
-
-- Windows: `powershell -ExecutionPolicy Bypass -File packaging\package-windows.ps1` → `dist\NekyLauncher-windows-x64.zip`
-- Linux: `bash packaging/package-linux.sh` → `dist/NekyLauncher-linux-x64.tar.gz`
-- Só testar: `./gradlew run` · testes: `./gradlew selfTest`
 
 ## Login Microsoft (conta original)
 
-Para quem usa o launcher é **um clique**, igual ao MultiMC/Prism: *Contas › Microsoft* abre o navegador na página da Microsoft, a pessoa entra e volta — pronto. (Também tem a opção "Entrar com código em outro dispositivo", via `microsoft.com/link`.) A senha nunca passa pelo launcher.
+Para quem usa o launcher é **um clique**: *Contas › Microsoft* abre o navegador na página da Microsoft, a pessoa entra e volta — pronto. (Também tem a opção "Entrar com código em outro dispositivo", via `microsoft.com/link`.) A senha nunca passa pelo launcher.
 
-Isso funciona porque o MultiMC/Prism embutem no programa o **client ID** deles, aprovado pela Mojang. Você faz o mesmo **uma vez só**, como dono do NekyLauncher:
-
-1. Em <https://portal.azure.com> → *App registrations* → *New registration*: tipo de conta **“Personal Microsoft accounts only”**.
-2. Em *Authentication* → *Add a platform* → **Mobile and desktop applications** → URI de redirecionamento **`http://localhost`**; e ative **“Allow public client flows”** (para o login por código).
-3. Peça a liberação para a API do Minecraft no formulário da Mojang: <https://aka.ms/mce-reviewappid>.
-4. Coloque o *client ID* no secret `NEKY_MS_CLIENT_ID` do GitHub (ou em `gradle.properties`, `msClientId=...`). Todo build gerado já sai com ele e ninguém precisa configurar nada. Sem ele, o launcher abre normalmente mas avisa que o login ainda não está configurado.
-
-Não use o client ID de outro launcher: cada app precisa do próprio.
-
-## Chave da API do CurseForge
-
-A API do CurseForge exige uma chave por aplicativo (o Modrinth não exige nada).
-
-1. Entre em <https://console.curseforge.com> com sua conta CurseForge/Overwolf e preencha o pedido de chave da API (*Get an API key*), descrevendo o NekyLauncher como launcher de Minecraft.
-2. Quando a chave for liberada, copie-a para o secret `NEKY_CF_API_KEY` do GitHub.
-3. Rode o build de novo. A chave vai embutida no executável (como em todos os launchers que usam a API); não coloque ela em arquivos do repositório.
-
-Arquivos cujo autor desativou downloads por terceiros vêm da API sem link: o NekyLauncher respeita isso e mostra a página para a pessoa baixar manualmente e arrastar na aba da instância.
 
 ## Onde ficam os arquivos
 
