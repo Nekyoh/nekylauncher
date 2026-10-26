@@ -477,7 +477,8 @@ public final class SelfTest {
         Files.writeString(lib, "package fakelib; public class Marker {}");
         Path classes = root.resolve("classes");
         Files.createDirectories(classes);
-        check(jc.run(null, null, null, "-d", classes.toString(), src.toString(), lib.toString()) == 0, "compile fake game");
+        // the profile asks for Java 17 and the launcher may pick a real Java 17 (as on CI runners): target it
+        check(jc.run(null, null, null, "--release", "17", "-d", classes.toString(), src.toString(), lib.toString()) == 0, "compile fake game");
 
         Dirs d = new Dirs(root.resolve("data"));
         d.ensure();
@@ -505,7 +506,7 @@ public final class SelfTest {
         Thread.sleep(300);
         List<String> lines = gp.snapshot().stream().map(GameProcess.Line::text).toList();
         String all = String.join("\n", lines);
-        eq(code[0], 0);
+        check(code[0] == 0, "exit code " + code[0] + ":\n" + all);
         check(all.contains("FAKE --username Steve --gameDir " + inst.gameDir()), "args reached the game:\n" + all);
         check(all.contains("[Render thread/INFO]: Setting user: Steve"), "log4j event parsed:\n" + all);
         check(all.contains("libpath=" + inst.nativesDir()), "natives dir passed");
